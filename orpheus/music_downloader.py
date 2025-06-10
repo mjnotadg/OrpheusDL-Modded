@@ -64,54 +64,72 @@ class Downloader:
             # add an extra new line to the extended format
             f.write('\n') if self.global_settings['playlist']['extended_m3u'] else None
 
+    def _check_strict_quality_requirement(self, track_id, track_info, extra_kwargs={}):
+        """Check if strict quality download is enabled and if the requested quality is available"""
+        if not self.global_settings['general'].get('strict_quality_download', False):
+            return True  # Strict quality not enabled, allow download
+
+        requested_quality = self.global_settings['general']['download_quality'].lower()
+        codec = track_info.codec
+        bitrate = getattr(track_info, 'bitrate', None)
+        bit_depth = getattr(track_info, 'bit_depth', None)
+        sample_rate = getattr(track_info, 'sample_rate', None)
+
+        # Define allowed codecs for each quality
+        allowed = False
+        if requested_quality == 'lossless':
+            allowed = codec.name in ['FLAC', 'ALAC', 'WAV']
+        elif requested_quality == 'hifi':
+            allowed = codec.name == 'FLAC' and (bit_depth is None or bit_depth > 16 or (bit_depth == 16 and sample_rate and sample_rate > 44.1))
+        elif requested_quality == 'high':
+            allowed = codec.name in ['MP3', 'AAC', 'HEAAC', 'VORBIS', 'OPUS'] and bitrate and bitrate >= 256
+        elif requested_quality == 'medium':
+            allowed = codec.name in ['MP3', 'AAC', 'HEAAC', 'VORBIS', 'OPUS'] and bitrate and 128 <= bitrate < 256
+        elif requested_quality == 'low':
+            allowed = codec.name in ['MP3', 'AAC', 'HEAAC', 'VORBIS', 'OPUS'] and bitrate and bitrate < 128
+        else:
+            allowed = True  # fallback: allow
+
+        if track_info.error or track_info.codec == CodecEnum.NONE or not allowed:
+            error_msg = f'Strict quality download failed: Requested quality "{requested_quality}" unavailable for: {track_info.artists[0] if track_info.artists else "Unknown"} [{track_info.artist_id}]/{track_info.album} [{track_info.album_id}]/{track_info.name} [{track_id}] (codec: {codec.name}, bitrate: {bitrate}, bit_depth: {bit_depth}, sample_rate: {sample_rate})'
+            self.print(error_msg)
+            # Log to error file
+            with open('strict_quality_errors.log', 'a', encoding='utf-8') as logf:
+                logf.write(f'{error_msg}\n')
+            self.print(f'=== Track {track_id} failed due to strict quality requirements ===', drop_level=1)
+            return False
+        return True
+
     def download_playlist(self, playlist_id, custom_module=None, extra_kwargs={}):
         self.set_indent_number(1)
 
         playlist_info: PlaylistInfo = self.service.get_playlist_info(playlist_id, **extra_kwargs)
-        self.print(f'=== Downloading playlist {playlist_info.name} ({playlist_id}) ===', drop_level=1)
-        self.print(f'Playlist creator: {playlist_info.creator}' + (f' ({playlist_info.creator_id})' if playlist_info.creator_id else ''))
-        if playlist_info.release_year: self.print(f'Playlist creation year: {playlist_info.release_year}')
-        if playlist_info.duration: self.print(f'Duration: {beauty_format_seconds(playlist_info.duration)}')
+        if not playlist_info:
+            return
+
         number_of_tracks = len(playlist_info.tracks)
+        self.print(f'=== Downloading playlist {playlist_info.name} ({playlist_id}) ===', drop_level=1)
+        self.print(f'Creator: {playlist_info.creator} ({playlist_info.creator_id})')
+        if playlist_info.release_year: self.print(f'Year: {playlist_info.release_year}')
+        if playlist_info.duration: self.print(f'Duration: {beauty_format_seconds(playlist_info.duration)}')
         self.print(f'Number of tracks: {number_of_tracks!s}')
         self.print(f'Service: {self.module_settings[self.service_name].service_name}')
         
+        # --- SOURCE SUBDIRECTORIES AT ROOT LEVEL ---
+        playlist_path = self.path
+        if self.global_settings['formatting'].get('source_subdirectories', False):
+            service_folder = self.module_settings[self.service_name].service_name
+            playlist_path += f'{service_folder}/'
+
+        # Create playlist folder
         playlist_tags = {k: sanitise_name(v) for k, v in asdict(playlist_info).items()}
         playlist_tags['explicit'] = ' [E]' if playlist_info.explicit else ''
-        playlist_path = self.path + self.global_settings['formatting']['playlist_format'].format(**playlist_tags)
-        # fix path byte limit
+        playlist_path += self.global_settings['formatting']['playlist_format'].format(**playlist_tags)
         playlist_path = fix_byte_limit(playlist_path) + '/'
-        os.makedirs(playlist_path, exist_ok=True)
-        
-        if playlist_info.cover_url:
-            self.print('Downloading playlist cover')
-            download_file(playlist_info.cover_url, f'{playlist_path}cover.{playlist_info.cover_type.name}', artwork_settings=self._get_artwork_settings())
-        
-        if playlist_info.animated_cover_url and self.global_settings['covers']['save_animated_cover']:
-            self.print('Downloading animated playlist cover')
-            download_file(playlist_info.animated_cover_url, playlist_path + 'cover.mp4', enable_progress_bar=True)
-        
-        if playlist_info.description:
-            with open(playlist_path + 'description.txt', 'w', encoding='utf-8') as f: f.write(playlist_info.description)
-
-        m3u_playlist_path = None
-        if self.global_settings['playlist']['save_m3u']:
-            if self.global_settings['playlist']['paths_m3u'] not in {"absolute", "relative"}:
-                raise ValueError(f'Invalid value for paths_m3u: "{self.global_settings["playlist"]["paths_m3u"]}",'
-                                 f' must be either "absolute" or "relative"')
-
-            m3u_playlist_path = playlist_path + f'{playlist_tags["name"]}.m3u'
-
-            # create empty file
-            with open(m3u_playlist_path, 'w', encoding='utf-8') as f:
-                f.write('')
-
-            # if extended format add the header
-            if self.global_settings['playlist']['extended_m3u']:
-                with open(m3u_playlist_path, 'a', encoding='utf-8') as f:
-                    f.write('#EXTM3U\n\n')
 
         tracks_errored = set()
+        m3u_playlist_path = None
+
         if custom_module:
             supported_modes = self.module_settings[custom_module].module_supported_modes 
             if ModuleModes.download not in supported_modes and ModuleModes.playlist not in supported_modes:
@@ -119,6 +137,9 @@ class Downloader:
             self.print(f'Service used for downloading: {self.module_settings[custom_module].service_name}')
             original_service = str(self.service_name)
             self.load_module(custom_module)
+            
+            # Check each track and download if quality requirements are met
+            successful_tracks = []
             for index, track_id in enumerate(playlist_info.tracks, start=1):
                 self.set_indent_number(2)
                 print()
@@ -130,31 +151,145 @@ class Downloader:
                 )
                 track_info: TrackInfo = self.loaded_modules[original_service].get_track_info(track_id, quality_tier, codec_options, **playlist_info.track_extra_kwargs)
                 
+                # Check quality requirements
+                if not self._check_strict_quality_requirement(track_id, track_info):
+                    tracks_errored.add(f'{track_info.name} - {track_info.artists[0]}')
+                    continue
+                
                 self.service = self.loaded_modules[custom_module]
                 self.service_name = custom_module
                 results = self.search_by_tags(custom_module, track_info)
                 track_id_new = results[0].result_id if len(results) else None
                 
                 if track_id_new:
-                    self.download_track(track_id_new, album_location=playlist_path, track_index=index, number_of_tracks=number_of_tracks, indent_level=2, m3u_playlist=m3u_playlist_path, extra_kwargs=results[0].extra_kwargs)
+                    # Create folder and download covers on first successful track
+                    if not successful_tracks:
+                        os.makedirs(playlist_path, exist_ok=True)
+
+                        # Download playlist cover if present
+                        if playlist_info.cover_url:
+                            self.print('Downloading playlist cover')
+                            download_file(playlist_info.cover_url, f'{playlist_path}cover.{playlist_info.cover_type.name}', artwork_settings=self._get_artwork_settings())
+
+                        if playlist_info.animated_cover_url and self.global_settings['covers']['save_animated_cover']:
+                            self.print('Downloading animated playlist cover')
+                            download_file(playlist_info.animated_cover_url, playlist_path + 'cover.mp4', enable_progress_bar=True)
+
+                        if playlist_info.description:
+                            with open(playlist_path + 'description.txt', 'w', encoding='utf-8') as f:
+                                f.write(playlist_info.description)
+
+                        if self.global_settings['playlist']['save_m3u']:
+                            m3u_playlist_path = playlist_path + playlist_info.name + '.m3u'
+                            with open(m3u_playlist_path, 'w', encoding='utf-8') as m3u_playlist:
+                                m3u_playlist.write('#EXTM3U\n')
+                                m3u_playlist.write(f'#EXTINF:-1,{playlist_info.name}\n')
+                                m3u_playlist.write(f'{playlist_path}\n')
+                                m3u_playlist.write('\n') if self.global_settings['playlist']['extended_m3u'] else None
+                        else:
+                            m3u_playlist_path = None
+                    else:
+                        m3u_playlist_path = playlist_path + playlist_info.name + '.m3u' if self.global_settings['playlist']['save_m3u'] else None
+                    
+                    # Download the track
+                    if self.download_track(track_id_new, album_location=playlist_path, track_index=len(successful_tracks)+1, number_of_tracks=number_of_tracks, indent_level=2, m3u_playlist=m3u_playlist_path, extra_kwargs=results[0].extra_kwargs):
+                        successful_tracks.append((track_id_new, results[0].extra_kwargs))
                 else:
                     tracks_errored.add(f'{track_info.name} - {track_info.artists[0]}')
                     if ModuleModes.download in self.module_settings[original_service].module_supported_modes:
                         self.service = self.loaded_modules[original_service]
                         self.service_name = original_service
                         self.print(f'Track {track_info.name} not found, using the original service as a fallback', drop_level=1)
-                        self.download_track(track_id, album_location=playlist_path, track_index=index, number_of_tracks=number_of_tracks, indent_level=2, m3u_playlist=m3u_playlist_path, extra_kwargs=playlist_info.track_extra_kwargs)
+                        
+                        # Create folder and download covers on first successful track
+                        if not successful_tracks:
+                            os.makedirs(playlist_path, exist_ok=True)
+
+                            # Download playlist cover if present
+                            if playlist_info.cover_url:
+                                self.print('Downloading playlist cover')
+                                download_file(playlist_info.cover_url, f'{playlist_path}cover.{playlist_info.cover_type.name}', artwork_settings=self._get_artwork_settings())
+
+                            if playlist_info.animated_cover_url and self.global_settings['covers']['save_animated_cover']:
+                                self.print('Downloading animated playlist cover')
+                                download_file(playlist_info.animated_cover_url, playlist_path + 'cover.mp4', enable_progress_bar=True)
+
+                            if playlist_info.description:
+                                with open(playlist_path + 'description.txt', 'w', encoding='utf-8') as f:
+                                    f.write(playlist_info.description)
+
+                            if self.global_settings['playlist']['save_m3u']:
+                                m3u_playlist_path = playlist_path + playlist_info.name + '.m3u'
+                                with open(m3u_playlist_path, 'w', encoding='utf-8') as m3u_playlist:
+                                    m3u_playlist.write('#EXTM3U\n')
+                                    m3u_playlist.write(f'#EXTINF:-1,{playlist_info.name}\n')
+                                    m3u_playlist.write(f'{playlist_path}\n')
+                                    m3u_playlist.write('\n') if self.global_settings['playlist']['extended_m3u'] else None
+                            else:
+                                m3u_playlist_path = None
+                        else:
+                            m3u_playlist_path = playlist_path + playlist_info.name + '.m3u' if self.global_settings['playlist']['save_m3u'] else None
+                        
+                        if self.download_track(track_id, album_location=playlist_path, track_index=len(successful_tracks)+1, number_of_tracks=number_of_tracks, indent_level=2, m3u_playlist=m3u_playlist_path, extra_kwargs=playlist_info.track_extra_kwargs):
+                            successful_tracks.append((track_id, playlist_info.track_extra_kwargs))
                     else:
                         self.print(f'Track {track_info.name} not found, skipping')
         else:
+            # Check each track and download if quality requirements are met
+            successful_tracks = []
             for index, track_id in enumerate(playlist_info.tracks, start=1):
                 self.set_indent_number(2)
                 print()
                 self.print(f'Track {index}/{number_of_tracks}', drop_level=1)
-                self.download_track(track_id, album_location=playlist_path, track_index=index, number_of_tracks=number_of_tracks, indent_level=2, m3u_playlist=m3u_playlist_path, extra_kwargs=playlist_info.track_extra_kwargs)
+                quality_tier = QualityEnum[self.global_settings['general']['download_quality'].upper()]
+                codec_options = CodecOptions(
+                    spatial_codecs = self.global_settings['codecs']['spatial_codecs'],
+                    proprietary_codecs = self.global_settings['codecs']['proprietary_codecs'],
+                )
+                track_info: TrackInfo = self.service.get_track_info(track_id, quality_tier, codec_options, **playlist_info.track_extra_kwargs)
+                
+                # Check quality requirements
+                if not self._check_strict_quality_requirement(track_id, track_info):
+                    continue
+                
+                # Create folder and download covers on first successful track
+                if not successful_tracks:
+                    os.makedirs(playlist_path, exist_ok=True)
+
+                    # Download playlist cover if present
+                    if playlist_info.cover_url:
+                        self.print('Downloading playlist cover')
+                        download_file(playlist_info.cover_url, f'{playlist_path}cover.{playlist_info.cover_type.name}', artwork_settings=self._get_artwork_settings())
+
+                    if playlist_info.animated_cover_url and self.global_settings['covers']['save_animated_cover']:
+                        self.print('Downloading animated playlist cover')
+                        download_file(playlist_info.animated_cover_url, playlist_path + 'cover.mp4', enable_progress_bar=True)
+
+                    if playlist_info.description:
+                        with open(playlist_path + 'description.txt', 'w', encoding='utf-8') as f:
+                            f.write(playlist_info.description)
+
+                    if self.global_settings['playlist']['save_m3u']:
+                        m3u_playlist_path = playlist_path + playlist_info.name + '.m3u'
+                        with open(m3u_playlist_path, 'w', encoding='utf-8') as m3u_playlist:
+                            m3u_playlist.write('#EXTM3U\n')
+                            m3u_playlist.write(f'#EXTINF:-1,{playlist_info.name}\n')
+                            m3u_playlist.write(f'{playlist_path}\n')
+                            m3u_playlist.write('\n') if self.global_settings['playlist']['extended_m3u'] else None
+                    else:
+                        m3u_playlist_path = None
+                else:
+                    m3u_playlist_path = playlist_path + playlist_info.name + '.m3u' if self.global_settings['playlist']['save_m3u'] else None
+                
+                # Download the track
+                if self.download_track(track_id, album_location=playlist_path, track_index=len(successful_tracks)+1, number_of_tracks=number_of_tracks, indent_level=2, m3u_playlist=m3u_playlist_path, extra_kwargs=playlist_info.track_extra_kwargs):
+                    successful_tracks.append(track_id)
 
         self.set_indent_number(1)
-        self.print(f'=== Playlist {playlist_info.name} downloaded ===', drop_level=1)
+        if successful_tracks:
+            self.print(f'=== Playlist {playlist_info.name} downloaded ({len(successful_tracks)}/{number_of_tracks} tracks) ===', drop_level=1)
+        else:
+            self.print(f'=== Playlist {playlist_info.name} skipped - no tracks meet quality requirements ===', drop_level=1)
 
         if tracks_errored: logging.debug('Failed tracks: ' + ', '.join(tracks_errored))
 
@@ -207,7 +342,7 @@ class Downloader:
 
         album_info: AlbumInfo = self.service.get_album_info(album_id, **extra_kwargs)
         if not album_info:
-            return
+            return []
         number_of_tracks = len(album_info.tracks)
         
         # --- SOURCE SUBDIRECTORIES AT ROOT LEVEL ---
@@ -221,9 +356,10 @@ class Downloader:
             pass
 
         if number_of_tracks > 1 or self.global_settings['formatting']['force_album_format']:
-            # Creates the album_location folders
-            album_path = self._create_album_location(path, album_id, album_info)
-        
+            # Don't create album folder yet - wait until we know at least one track will be downloaded
+            album_path = None
+            successful_tracks = []
+            
             if self.download_mode is DownloadTypeEnum.album:
                 self.set_indent_number(1)
             elif self.download_mode is DownloadTypeEnum.artist:
@@ -236,28 +372,65 @@ class Downloader:
             self.print(f'Number of tracks: {number_of_tracks!s}')
             self.print(f'Service: {self.module_settings[self.service_name].service_name}')
 
-            if album_info.booklet_url and not os.path.exists(album_path + 'Booklet.pdf'):
-                self.print('Downloading booklet')
-                download_file(album_info.booklet_url, album_path + 'Booklet.pdf')
-            
-            cover_temp_location = download_to_temp(album_info.all_track_cover_jpg_url) if album_info.all_track_cover_jpg_url else ''
-
-            # Download booklet, animated album cover and album cover if present
-            self._download_album_files(album_path, album_info)
-
+            # Check each track and download if quality requirements are met
             for index, track_id in enumerate(album_info.tracks, start=1):
                 self.set_indent_number(indent_level + 1)
                 print()
                 self.print(f'Track {index}/{number_of_tracks}', drop_level=1)
-                self.download_track(track_id, album_location=album_path, track_index=index, number_of_tracks=number_of_tracks, main_artist=artist_name, cover_temp_location=cover_temp_location, indent_level=indent_level+1, extra_kwargs=album_info.track_extra_kwargs)
+                
+                # Check if track meets quality requirements before creating folder
+                quality_tier = QualityEnum[self.global_settings['general']['download_quality'].upper()]
+                codec_options = CodecOptions(
+                    spatial_codecs = self.global_settings['codecs']['spatial_codecs'],
+                    proprietary_codecs = self.global_settings['codecs']['proprietary_codecs'],
+                )
+                track_info: TrackInfo = self.service.get_track_info(track_id, quality_tier, codec_options, **album_info.track_extra_kwargs)
+                
+                # Check quality requirements
+                if not self._check_strict_quality_requirement(track_id, track_info):
+                    continue  # Skip this track
+                
+                # Create folder and download covers on first successful track
+                if album_path is None:
+                    album_path = self._create_album_location(path, album_id, album_info)
+                    
+                    if album_info.booklet_url and not os.path.exists(album_path + 'Booklet.pdf'):
+                        self.print('Downloading booklet')
+                        download_file(album_info.booklet_url, album_path + 'Booklet.pdf')
+                    
+                    cover_temp_location = download_to_temp(album_info.all_track_cover_jpg_url) if album_info.all_track_cover_jpg_url else ''
+
+                    # Download booklet, animated album cover and album cover if present
+                    self._download_album_files(album_path, album_info)
+                else:
+                    cover_temp_location = ''
+
+                # Download the track
+                if self.download_track(track_id, album_location=album_path, track_index=len(successful_tracks)+1, number_of_tracks=number_of_tracks, main_artist=artist_name, cover_temp_location=cover_temp_location, indent_level=indent_level+1, extra_kwargs=album_info.track_extra_kwargs):
+                    successful_tracks.append(track_id)
+                    if cover_temp_location: silentremove(cover_temp_location)
 
             self.set_indent_number(indent_level)
-            self.print(f'=== Album {album_info.name} downloaded ===', drop_level=1)
-            if cover_temp_location: silentremove(cover_temp_location)
+            if successful_tracks:
+                self.print(f'=== Album {album_info.name} downloaded ({len(successful_tracks)}/{number_of_tracks} tracks) ===', drop_level=1)
+            else:
+                self.print(f'=== Album {album_info.name} skipped - no tracks meet quality requirements ===', drop_level=1)
         elif number_of_tracks == 1:
-            self.download_track(album_info.tracks[0], album_location=path, number_of_tracks=1, main_artist=artist_name, indent_level=indent_level, extra_kwargs=album_info.track_extra_kwargs)
+            # For single tracks, check quality first
+            quality_tier = QualityEnum[self.global_settings['general']['download_quality'].upper()]
+            codec_options = CodecOptions(
+                spatial_codecs = self.global_settings['codecs']['spatial_codecs'],
+                proprietary_codecs = self.global_settings['codecs']['proprietary_codecs'],
+            )
+            track_info: TrackInfo = self.service.get_track_info(album_info.tracks[0], quality_tier, codec_options, **album_info.track_extra_kwargs)
+            
+            if self._check_strict_quality_requirement(album_info.tracks[0], track_info):
+                return self.download_track(album_info.tracks[0], album_location=path, number_of_tracks=1, main_artist=artist_name, indent_level=indent_level, extra_kwargs=album_info.track_extra_kwargs)
+            else:
+                self.print(f'=== Single track album {album_info.name} skipped - does not meet quality requirements ===', drop_level=1)
+                return []
 
-        return album_info.tracks
+        return successful_tracks if 'successful_tracks' in locals() else []
 
     def download_artist(self, artist_id, extra_kwargs={}):
         artist_info: ArtistInfo = self.service.get_artist_info(artist_id, self.global_settings['artist_downloading']['return_credited_albums'], **extra_kwargs)
@@ -333,9 +506,12 @@ class Downloader:
         )
         track_info: TrackInfo = self.service.get_track_info(track_id, quality_tier, codec_options, **extra_kwargs)
         
+        if not self._check_strict_quality_requirement(track_id, track_info):
+            return False
+        
         if main_artist.lower() not in [i.lower() for i in track_info.artists] and self.global_settings['advanced']['ignore_different_artists'] and self.download_mode is DownloadTypeEnum.artist:
            self.print('Track is not from the correct artist, skipping', drop_level=1)
-           return
+           return False
 
         if not self.global_settings['formatting']['force_album_format']:
             if track_index:
@@ -374,7 +550,7 @@ class Downloader:
             if self.global_settings['advanced'].get('log_unavailable_tracks', False):
                 with open('unavailable_tracks.log', 'a', encoding='utf-8') as logf:
                     logf.write(f'Track failed: {track_id} - {track_info.name} - {track_info.album} - {track_info.artists}\n')
-            return
+            return False
 
         album_location = album_location.replace('\\', '/')
 
@@ -432,7 +608,7 @@ class Downloader:
                 self._add_track_m3u_playlist(m3u_playlist, track_info, track_location)
 
             self.print(f'=== Track {track_id} skipped ===', drop_level=1)
-            return
+            return True  # Consider existing files as successful
 
         if track_info.description:
             with open(track_location_name + '.txt', 'w', encoding='utf-8') as f: f.write(track_info.description)
@@ -461,7 +637,7 @@ class Downloader:
             if self.global_settings['advanced']['debug_mode']: raise
             self.print('Warning: Track download failed: ' + str(sys.exc_info()[1]))
             self.print(f'=== Track {track_id} failed ===', drop_level=1)
-            return
+            return False
 
         delete_cover = False
         if not cover_temp_location:
@@ -523,67 +699,29 @@ class Downloader:
             lyrics_info = LyricsInfo()
             if self.third_party_modules[ModuleModes.lyrics] and self.third_party_modules[ModuleModes.lyrics] != self.service_name:
                 lyrics_module_name = self.third_party_modules[ModuleModes.lyrics]
-                self.print('Retrieving lyrics with ' + lyrics_module_name)
+                self.print('Retrieving lyrics' + ((' with ' + lyrics_module_name) if lyrics_module_name else ''))
                 lyrics_module = self.loaded_modules[lyrics_module_name]
-
-                if lyrics_module_name != self.service_name:
-                    results: list[SearchResult] = self.search_by_tags(lyrics_module_name, track_info)
-                    lyrics_track_id = results[0].result_id if len(results) else None
-                    extra_kwargs = results[0].extra_kwargs if len(results) else None
-                else:
-                    lyrics_track_id = track_id
-                    extra_kwargs = {}
-                
-                if lyrics_track_id:
-                    lyrics_info: LyricsInfo = lyrics_module.get_track_lyrics(lyrics_track_id, **extra_kwargs)
-                    # if lyrics_info.embedded or lyrics_info.synced:
-                    #     self.print('Lyrics retrieved')
-                    # else:
-                    #     self.print('Lyrics module could not find any lyrics.')
-                else:
-                    self.print('Lyrics module could not find any lyrics.')
+                results: list[SearchResult] = self.search_by_tags(lyrics_module_name, track_info)
+                if results:
+                    lyrics_info = lyrics_module.get_track_lyrics(results[0].result_id, **results[0].extra_kwargs)
             elif ModuleModes.lyrics in self.module_settings[self.service_name].module_supported_modes:
-                lyrics_info: LyricsInfo = self.service.get_track_lyrics(track_id, **track_info.lyrics_extra_kwargs)
-                # if lyrics_info.embedded or lyrics_info.synced:
-                #     self.print('Lyrics retrieved')
-                # else:
-                #     self.print('No lyrics available')
-
-            if lyrics_info.embedded and self.global_settings['lyrics']['embed_lyrics']:
+                self.print('Retrieving lyrics')
+                lyrics_info = self.service.get_track_lyrics(track_id, **track_info.lyrics_extra_kwargs)
+            
+            if lyrics_info.embedded:
                 embedded_lyrics = lyrics_info.embedded
-            # embed the synced lyrics (f.e. Roon) if they are available
-            if lyrics_info.synced and self.global_settings['lyrics']['embed_lyrics'] and \
-                    self.global_settings['lyrics']['embed_synced_lyrics']:
-                embedded_lyrics = lyrics_info.synced
-            if lyrics_info.synced and self.global_settings['lyrics']['save_synced_lyrics']:
-                lrc_location = f'{track_location_name}.lrc'
-                if not os.path.isfile(lrc_location):
-                    with open(lrc_location, 'w', encoding='utf-8') as f:
-                        f.write(lyrics_info.synced)
+                if self.global_settings['lyrics']['save_synced_lyrics'] and lyrics_info.synced:
+                    with open(track_location_name + '.lrc', 'w', encoding='utf-8') as f: f.write(lyrics_info.synced)
 
         # Get credits
         credits_list = []
         if self.third_party_modules[ModuleModes.credits] and self.third_party_modules[ModuleModes.credits] != self.service_name:
             credits_module_name = self.third_party_modules[ModuleModes.credits]
-            self.print('Retrieving credits with ' + credits_module_name)
+            self.print('Retrieving credits' + ((' with ' + credits_module_name) if credits_module_name else ''))
             credits_module = self.loaded_modules[credits_module_name]
-
-            if credits_module_name != self.service_name:
-                results: list[SearchResult] = self.search_by_tags(credits_module_name, track_info)
-                credits_track_id = results[0].result_id if len(results) else None
-                extra_kwargs = results[0].extra_kwargs if len(results) else None
-            else:
-                credits_track_id = track_id
-                extra_kwargs = {}
-            
-            if credits_track_id:
-                credits_list = credits_module.get_track_credits(credits_track_id, **extra_kwargs)
-                # if credits_list:
-                #     self.print('Credits retrieved')
-                # else:
-                #     self.print('Credits module could not find any credits.')
-            # else:
-            #     self.print('Credits module could not find any credits.')
+            results: list[SearchResult] = self.search_by_tags(credits_module_name, track_info)
+            if results:
+                credits_list = credits_module.get_track_credits(results[0].result_id, **results[0].extra_kwargs)
         elif ModuleModes.credits in self.module_settings[self.service_name].module_supported_modes:
             self.print('Retrieving credits')
             credits_list = self.service.get_track_credits(track_id, **track_info.credits_extra_kwargs)
@@ -686,6 +824,7 @@ class Downloader:
             silentremove(cover_temp_location)
         
         self.print(f'=== Track {track_id} downloaded ===', drop_level=1)
+        return True
 
     def _get_artwork_settings(self, module_name = None, is_external = False):
         if not module_name:
