@@ -36,11 +36,15 @@ class Orpheus:
             "general": {
                 "download_path": "./downloads/",
                 "download_quality": "hifi",
-                "search_limit": 10
+                "search_limit": 10,
+                "source_subdirectories": False
             },
             "artist_downloading":{
                 "return_credited_albums": True,
-                "separate_tracks_skip_downloaded": True
+                "separate_tracks_skip_downloaded": True,
+                "filter_collectors_editions": False,
+                "filter_live_recordings": False,
+                "filter_other_artists": True
             },
             "formatting": {
                 "album_format": "{name}{explicit}",

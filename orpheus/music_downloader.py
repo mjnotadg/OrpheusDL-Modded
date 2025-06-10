@@ -42,6 +42,27 @@ class Downloader:
         self.print = self.oprinter.oprint
         self.set_indent_number = self.oprinter.set_indent_number
 
+    def _get_service_path(self, base_path: str, service_name: str) -> str:
+        """
+        Get the service-specific path if source_subdirectories is enabled.
+        Returns the base path with service subdirectory if enabled.
+        """
+        if self.global_settings['general']['source_subdirectories'] and service_name:
+            # Create service subdirectory path
+            service_path = base_path + service_name + '/'
+            # Ensure the directory exists
+            os.makedirs(service_path, exist_ok=True)
+            return service_path
+        return base_path
+
+    def _get_current_service_path(self) -> str:
+        """
+        Get the current service-specific path based on the active service.
+        """
+        if self.service_name:
+            return self._get_service_path(self.path, self.module_settings[self.service_name].service_name)
+        return self.path
+
     def search_by_tags(self, module_name, track_info: TrackInfo):
         return self.loaded_modules[module_name].search(DownloadTypeEnum.track, f'{track_info.name} {" ".join(track_info.artists)}', track_info=track_info)
 
@@ -78,7 +99,10 @@ class Downloader:
         
         playlist_tags = {k: sanitise_name(v) for k, v in asdict(playlist_info).items()}
         playlist_tags['explicit'] = ' [E]' if playlist_info.explicit else ''
-        playlist_path = self.path + self.global_settings['formatting']['playlist_format'].format(**playlist_tags)
+        
+        # Use service-specific path if enabled
+        service_path = self._get_current_service_path()
+        playlist_path = service_path + self.global_settings['formatting']['playlist_format'].format(**playlist_tags)
         # fix path byte limit
         playlist_path = fix_byte_limit(playlist_path) + '/'
         os.makedirs(playlist_path, exist_ok=True)
@@ -201,12 +225,54 @@ class Downloader:
             with open(album_path + 'description.txt', 'w', encoding='utf-8') as f:
                 f.write(album_info.description)  # Also add support for this with singles maybe?
 
+    def _should_filter_album(self, album_info: AlbumInfo, artist_name: str) -> tuple[bool, str]:
+        """
+        Check if an album should be filtered out based on configuration settings.
+        Returns (should_filter, reason) tuple.
+        """
+        album_name_lower = album_info.name.lower()
+        artist_name_lower = artist_name.lower()
+        
+        # Check for collectors editions
+        if self.global_settings['artist_downloading']['filter_collectors_editions']:
+            collectors_keywords = [
+                'collector', 'collectors', 'collector\'s', 'collectors\'',
+                'deluxe', 'expanded', 'extended', 'bonus', 'special',
+                'anniversary', 'remastered', 'reissue', 'limited'
+            ]
+            if any(keyword in album_name_lower for keyword in collectors_keywords):
+                return True, "collector's edition"
+        
+        # Check for live recordings
+        if self.global_settings['artist_downloading']['filter_live_recordings']:
+            live_keywords = [
+                'live', 'concert', 'performance', 'stage', 'tour',
+                'acoustic', 'unplugged', 'mtv', 'bbc', 'radio',
+                'session', 'live at', 'live from', 'live in'
+            ]
+            if any(keyword in album_name_lower for keyword in live_keywords):
+                return True, "live recording"
+        
+        # Check for other artists
+        if self.global_settings['artist_downloading']['filter_other_artists']:
+            if album_info.artist.lower() != artist_name_lower:
+                return True, f"different artist ({album_info.artist})"
+        
+        return False, ""
+
     def download_album(self, album_id, artist_name='', path=None, indent_level=1, extra_kwargs={}):
         self.set_indent_number(indent_level)
 
         album_info: AlbumInfo = self.service.get_album_info(album_id, **extra_kwargs)
         if not album_info:
             return
+        
+        # Check if album should be filtered out
+        should_filter, filter_reason = self._should_filter_album(album_info, artist_name)
+        if should_filter:
+            self.print(f'=== Skipping album {album_info.name} ({album_id}) - {filter_reason} ===', drop_level=1)
+            return []
+        
         number_of_tracks = len(album_info.tracks)
         path = self.path if not path else path
 
@@ -262,7 +328,10 @@ class Downloader:
         if number_of_albums: self.print(f'Number of albums: {number_of_albums!s}')
         if number_of_tracks: self.print(f'Number of tracks: {number_of_tracks!s}')
         self.print(f'Service: {self.module_settings[self.service_name].service_name}')
-        artist_path = self.path + sanitise_name(artist_name) + '/'
+        
+        # Use service-specific path if enabled
+        service_path = self._get_current_service_path()
+        artist_path = service_path + sanitise_name(artist_name) + '/'
 
         self.set_indent_number(2)
         tracks_downloaded = []
@@ -341,7 +410,8 @@ class Downloader:
             # Fetch every needed album_info tag and create an album_location
             album_info: AlbumInfo = self.service.get_album_info(track_info.album_id)
             # Save the playlist path to save all the albums in the playlist path
-            path = self.path if album_location == '' else album_location
+            service_path = self._get_current_service_path()
+            path = service_path if album_location == '' else album_location
             album_location = self._create_album_location(path, track_info.album_id, album_info)
             album_location = album_location.replace('\\', '/')
 
@@ -349,7 +419,8 @@ class Downloader:
             self._download_album_files(album_location, album_info)
 
         if self.download_mode is DownloadTypeEnum.track and not self.global_settings['formatting']['force_album_format']:  # Python 3.10 can't become popular sooner, ugh
-            track_location_name = self.path + self.global_settings['formatting']['single_full_path_format'].format(**track_tags)
+            service_path = self._get_current_service_path()
+            track_location_name = service_path + self.global_settings['formatting']['single_full_path_format'].format(**track_tags)
         elif track_info.tags.total_tracks == 1 and not self.global_settings['formatting']['force_album_format']:
             track_location_name = album_location + self.global_settings['formatting']['single_full_path_format'].format(**track_tags)
         else:
