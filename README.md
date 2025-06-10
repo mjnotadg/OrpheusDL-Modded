@@ -20,8 +20,17 @@ A modular music archival program
     - [Installation](#installation)
 - [Usage](#usage)
 - [Configuration](#configuration)
-    - [Global/Formatting](#globalformatting)
-        - [Format variables](#format-variables)
+    - [General Settings](#general-settings)
+    - [Artist Downloading Settings](#artist-downloading-settings)
+    - [Formatting Settings](#formatting-settings)
+    - [Codec Settings](#codec-settings)
+    - [Module Defaults](#module-defaults)
+    - [Lyrics Settings](#lyrics-settings)
+    - [Cover Settings](#cover-settings)
+    - [Playlist Settings](#playlist-settings)
+    - [Advanced Settings](#advanced-settings)
+        - [Artist Downloading Behavior](#artist-downloading-behavior)
+        - [Quality Enforcement Details](#quality-enforcement-details)
 - [Contact](#contact)
 - [Acknowledgements](#acknowledgements)
 
@@ -82,7 +91,8 @@ python3 orpheus.py download qobuz track 52151405
 You can customize every module from Orpheus individually and also set general/global settings which are active in every
 loaded module. You'll find the configuration file here: `config/settings.json`
 
-### Global/General
+### General Settings
+
 ```json5
 {
     "download_path": "./downloads/",
@@ -92,45 +102,37 @@ loaded module. You'll find the configuration file here: `config/settings.json`
 }
 ```
 
-`download_path`: Set the absolute or relative output path with `/` as the delimiter
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `download_path` | string | `"./downloads/"` | Set the absolute or relative output path with `/` as the delimiter |
+| `download_quality` | string | `"hifi"` | Choose one of the following settings: `"hifi"`, `"lossless"`, `"high"`, `"medium"`, `"low"` |
+| `search_limit` | integer | `10` | How many search results are shown when searching |
+| `strict_quality_download` | boolean | `false` | If enabled, tracks will only be downloaded if the requested quality is available |
 
-`download_quality`: Choose one of the following settings:
-* "hifi": FLAC higher than 44.1/16 if available
-* "lossless": FLAC with 44.1/16 if available
-* "high": lossy codecs such as MP3, AAC, ... in a higher bitrate
-* "medium": lossy codecs such as MP3, AAC, ... in a medium bitrate
-* "low": lossy codecs such as MP3, AAC, ... in a lower bitrate
+**Quality Options:**
+- **"hifi"**: FLAC higher than 44.1/16 if available
+- **"lossless"**: FLAC with 44.1/16 if available  
+- **"high"**: lossy codecs such as MP3, AAC, ... in a higher bitrate
+- **"medium"**: lossy codecs such as MP3, AAC, ... in a medium bitrate
+- **"low"**: lossy codecs such as MP3, AAC, ... in a lower bitrate
 
 **NOTE: The `download_quality` really depends on the used modules, so check out the modules README.md**
 
-`search_limit`: How many search results are shown
+### Artist Downloading Settings
 
-`strict_quality_download`: If enabled, tracks will only be downloaded if the requested quality is available. If the quality is unavailable, the track will be skipped and an error will be logged to `strict_quality_errors.log` with details about the failed download.
-
-#### Quality Enforcement Details
-
-When `strict_quality_download` is enabled, the following quality requirements are enforced:
-
-| Quality Setting | Allowed Codecs | Additional Requirements |
-|----------------|----------------|------------------------|
-| **lossless** | FLAC, ALAC, WAV | Any bit depth/sample rate |
-| **hifi** | FLAC | >16bit OR >44.1kHz sample rate |
-| **high** | MP3, AAC, HE-AAC, Vorbis, Opus | ≥256kbps bitrate |
-| **medium** | MP3, AAC, HE-AAC, Vorbis, Opus | 128-255kbps bitrate |
-| **low** | MP3, AAC, HE-AAC, Vorbis, Opus | <128kbps bitrate |
-
-**Example Error Log Entry:**
-```
-Strict quality download failed: Requested quality "lossless" unavailable for: Artist Name [123]/Album Name [456]/Track Name [789] (codec: MP3, bitrate: 320, bit_depth: 16, sample_rate: 44.1)
+```json5
+{
+    "return_credited_albums": true,
+    "separate_tracks_skip_downloaded": true
+}
 ```
 
-**Benefits:**
-- Prevents downloading tracks that don't meet your quality standards
-- Avoids creating empty folders when no tracks meet quality requirements
-- Provides detailed logging of failed downloads for review
-- Works with all download types: albums, artists, playlists, and individual tracks
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `return_credited_albums` | boolean | `true` | If enabled, includes albums where the artist is credited (not just main artist) |
+| `separate_tracks_skip_downloaded` | boolean | `true` | If enabled, skips separate tracks that have already been downloaded as part of albums |
 
-### Global/Formatting:
+### Formatting Settings
 
 ```json5
 {
@@ -145,50 +147,78 @@ Strict quality download failed: Requested quality "lossless" unavailable for: Ar
 }
 ```
 
-`track_filename_format`: How tracks are formatted in albums and playlists. The relevant extension is appended to the end.
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `track_filename_format` | string | `"{track_number}. {name}"` | How tracks are formatted in albums and playlists |
+| `album_format` | string | `"{name}{explicit}"` | Base directory for albums - tracks and cover art are stored here |
+| `playlist_format` | string | `"{name}{explicit}"` | Base directory for playlists |
+| `single_full_path_format` | string | `"{name}"` | How singles are handled, separate from album/playlist formatting |
+| `enable_zfill` | boolean | `true` | Enables zero padding for track numbers, disc numbers, etc. |
+| `force_album_format` | boolean | `false` | Forces album format for tracks instead of single format |
+| `source_subdirectories` | boolean | `true` | Creates service-specific subdirectories (e.g., "Qobuz", "Tidal", "Deezer") |
+| `disc_subdirectories` | boolean | `true` | Creates "Disc N" subdirectories for multi-disc albums |
 
-`album_format`, `playlist_format`, `artist_format`: Base directories for their respective formats - tracks and cover
-art are stored here. May have slashes in it, for instance {artist}/{album}.
+#### Format Variables
 
-`single_full_path_format`: How singles are handled, which is separate to how the above work.
-Instead, this has both the folder's name and the track's name.
+**Track filename variables:** `{name}`, `{album}`, `{album_artist}`, `{album_id}`, `{track_number}`, `{total_tracks}`, `{disc_number}`, `{total_discs}`, `{release_date}`, `{release_year}`, `{artist_id}`, `{isrc}`, `{upc}`, `{explicit}`, `{copyright}`, `{codec}`, `{sample_rate}`, `{bit_depth}`
 
-`enable_zfill`: Enables zero padding for `track_number`, `total_tracks`, `disc_number`, `total_discs` if the
-corresponding number has more than 2 digits
+**Album format variables:** `{name}`, `{id}`, `{artist}`, `{artist_id}`, `{release_year}`, `{upc}`, `{explicit}`, `{quality}`, `{artist_initials}`
 
-`force_album_format`: Forces the `album_format` for tracks instead of the `single_full_path_format` and also
-uses `album_format` in the `playlist_format` folder 
+**Playlist format variables:** `{name}`, `{creator}`, `{tracks}`, `{release_year}`, `{explicit}`, `{creator_id}`
 
-`source_subdirectories`: If enabled, creates service-specific subdirectories (e.g., "Qobuz", "Tidal", "Deezer") 
-within the download path. This helps organize downloads by their source service.
+**Special variables:**
+- `{quality}` adds quality indicators like `[Dolby Atmos]`, `[96kHz 24bit]`, `[M]`
+- `{explicit}` adds `[E]` for explicit content
 
-`disc_subdirectories`: If enabled, creates "Disc N" subdirectories for multi-disc albums. If disabled, no disc subdirectories are created and all tracks are placed directly in the album folder.
+### Codec Settings
 
-#### Format variables
+```json5
+{
+    "proprietary_codecs": false,
+    "spatial_codecs": true
+}
+```
 
-`track_filename_format` variables are `{name}`, `{album}`, `{album_artist}`, `{album_id}`, `{track_number}`,
-`{total_tracks}`, `{disc_number}`, `{total_discs}`, `{release_date}`, `{release_year}`, `{artist_id}`, `{isrc}`,
-`{upc}`, `{explicit}`, `{copyright}`, `{codec}`, `{sample_rate}`, `{bit_depth}`.
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `proprietary_codecs` | boolean | `false` | Enable to allow `MQA`, `E-AC-3 JOC` or `AC-4 IMS` |
+| `spatial_codecs` | boolean | `true` | Enable to allow `MPEG-H 3D`, `E-AC-3 JOC` or `AC-4 IMS` |
 
-`album_format` variables are `{name}`, `{id}`, `{artist}`, `{artist_id}`, `{release_year}`, `{upc}`, `{explicit}`,
-`{quality}`, `{artist_initials}`.
+**Note: `spatial_codecs` has priority over `proprietary_codecs` when deciding if a codec is enabled**
 
-`playlist_format` variables are `{name}`, `{creator}`, `{tracks}`, `{release_year}`, `{explicit}`, `{creator_id}`
+### Module Defaults
 
-* `{quality}` will add
-    ```
-     [Dolby Atmos]
-     [96kHz 24bit]
-     [M]
-    ```
- to the corresponding path (depending on the module)
-* `{explicit}` will add
-    ```
-     [E]
-    ```
-  to the corresponding path
+```json5
+{
+    "lyrics": "default",
+    "covers": "default",
+    "credits": "default"
+}
+```
 
-### Global/Covers
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `lyrics` | string | `"default"` | Module to use for lyrics retrieval. Change to module name under `/modules` |
+| `covers` | string | `"default"` | Module to use for cover art retrieval. Change to module name under `/modules` |
+| `credits` | string | `"default"` | Module to use for credits retrieval. Change to module name under `/modules` |
+
+### Lyrics Settings
+
+```json5
+{
+    "embed_lyrics": true,
+    "embed_synced_lyrics": false,
+    "save_synced_lyrics": true
+}
+```
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `embed_lyrics` | boolean | `true` | Embeds the (unsynced) lyrics inside every track |
+| `embed_synced_lyrics` | boolean | `false` | Embeds the synced lyrics inside every track (requires `embed_lyrics` to be enabled) |
+| `save_synced_lyrics` | boolean | `true` | Saves the synced lyrics in a `.lrc` file in the same directory as the track |
+
+### Cover Settings
 
 ```json5
 {
@@ -203,61 +233,34 @@ within the download path. This helps organize downloads by their source service.
 }
 ```
 
-| Option               | Info                                                                                     |
-|----------------------|------------------------------------------------------------------------------------------|
-| embed_cover          | Enable it to embed the album cover inside every track                                    |
-| main_compression     | Compression of the main cover                                                            |
-| main_resolution      | Resolution (in pixels) of the cover of the module used                                   |
-| save_external        | Enable it to save the cover from a third party cover module                              |
-| external_format      | Format of the third party cover, supported values: `jpg`, `png`, `webp`                  |
-| external_compression | Compression of the third party cover, supported values: `low`, `high`                    |
-| external_resolution  | Resolution (in pixels) of the third party cover                                          |
-| save_animated_cover  | Enable saving the animated cover when supported from the module (often in MPEG-4 format) |
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `embed_cover` | boolean | `true` | Embeds the album cover inside every track |
+| `main_compression` | string | `"high"` | Compression of the main cover (`"low"` or `"high"`) |
+| `main_resolution` | integer | `1400` | Resolution (in pixels) of the main cover |
+| `save_external` | boolean | `false` | Saves the cover from a third party cover module |
+| `external_format` | string | `"png"` | Format of the third party cover (`"jpg"`, `"png"`, `"webp"`) |
+| `external_compression` | string | `"low"` | Compression of the third party cover (`"low"` or `"high"`) |
+| `external_resolution` | integer | `3000` | Resolution (in pixels) of the third party cover |
+| `save_animated_cover` | boolean | `true` | Saves animated covers when supported (often in MPEG-4 format) |
 
-### Global/Codecs
-
-```json5
-{
-    "proprietary_codecs": false,
-    "spatial_codecs": true
-}
-```
-
-`proprietary_codecs`: Enable it to allow `MQA`, `E-AC-3 JOC` or `AC-4 IMS`
-
-`spatial_codecs`: Enable it to allow `MPEG-H 3D`, `E-AC-3 JOC` or `AC-4 IMS`
-
-**Note: `spatial_codecs` has priority over `proprietary_codecs` when deciding if a codec is enabled**
-
-### Global/Module_defaults
+### Playlist Settings
 
 ```json5
 {
-    "lyrics": "default",
-    "covers": "default",
-    "credits": "default"
+    "save_m3u": true,
+    "paths_m3u": "absolute",
+    "extended_m3u": true
 }
 ```
 
-Change `default` to the module name under `/modules` in order to retrieve `lyrics`, `covers` or `credits` from the
-selected module
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `save_m3u` | boolean | `true` | Saves an M3U playlist file with the downloaded tracks |
+| `paths_m3u` | string | `"absolute"` | Type of paths in M3U file (`"absolute"` or `"relative"`) |
+| `extended_m3u` | boolean | `true` | Creates extended M3U format with track duration and artist information |
 
-### Global/Lyrics
-```json5
-{
-    "embed_lyrics": true,
-    "embed_synced_lyrics": false,
-    "save_synced_lyrics": true
-}
-```
-
-| Option              | Info                                                                                                                                                                |
-|---------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| embed_lyrics        | Embeds the (unsynced) lyrics inside every track                                                                                                                     |
-| embed_synced_lyrics | Embeds the synced lyrics inside every track (needs `embed_lyrics` to be enabled) (required for [Roon](https://community.roonlabs.com/t/1-7-lyrics-tag-guide/85182)) |
-| save_synced_lyrics  | Saves the synced lyrics inside a  `.lrc` file in the same directory as the track with the same `track_format` variables                                             |
-
-### Global/Advanced
+### Advanced Settings
 
 ```json5
 {
@@ -285,14 +288,99 @@ selected module
 }
 ```
 
-| Option                        | Info                                                                                     |
-|-------------------------------|------------------------------------------------------------------------------------------|
-| remove_collectors_editions    | If enabled, filters out collector's editions when downloading artists. Detected by keywords: collector, deluxe, expanded, bonus, special, anniversary, remastered, reissue, limited |
-| remove_live_recordings        | If enabled, filters out live recordings when downloading artists. Detected by keywords: live, concert, performance, stage, tour, acoustic, unplugged, mtv, bbc, radio, session |
-| strict_artist_match           | If enabled, only downloads albums where the album artist exactly matches the requested artist name (case-insensitive) |
-| log_unavailable_tracks        | If enabled, logs failed track downloads to `unavailable_tracks.log` with track ID, name, album, and artists |
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `advanced_login_system` | boolean | `false` | Enables advanced login system for modules |
+| `codec_conversions` | object | `{"alac": "flac", "wav": "flac"}` | Automatic codec conversion rules |
+| `conversion_flags` | object | `{"flac": {"compression_level": "5"}}` | FFmpeg conversion flags for different codecs |
+| `conversion_keep_original` | boolean | `false` | Keeps original files after codec conversion |
+| `cover_variance_threshold` | integer | `8` | Threshold for cover art similarity matching |
+| `debug_mode` | boolean | `false` | Enables debug logging |
+| `disable_subscription_checks` | boolean | `false` | Disables subscription quality checks |
+| `enable_undesirable_conversions` | boolean | `false` | Enables potentially undesirable codec conversions |
+| `ignore_existing_files` | boolean | `false` | Skips tracks that already exist on disk |
+| `ignore_different_artists` | boolean | `true` | Skips tracks by different artists during artist downloads |
+| `remove_collectors_editions` | boolean | `true` | Filters out collector's editions during artist downloads |
+| `remove_live_recordings` | boolean | `true` | Filters out live recordings during artist downloads |
+| `strict_artist_match` | boolean | `true` | Only downloads albums where album artist matches requested artist |
+| `log_unavailable_tracks` | boolean | `true` | Logs failed track downloads to `unavailable_tracks.log` |
 
-**Note:** The filtering options (`remove_collectors_editions`, `remove_live_recordings`, and `strict_artist_match`) only apply when downloading artists, not individual albums or tracks.
+#### Artist Downloading Behavior
+
+The following settings control how artist downloads behave:
+
+**Album Filtering:**
+- `strict_artist_match`: Only processes albums where the album artist exactly matches the requested artist
+- `remove_collectors_editions`: Skips albums with keywords like "collector", "deluxe", "expanded", "bonus", "special", "anniversary", "remastered", "reissue", "limited"
+- `remove_live_recordings`: Skips albums with keywords like "live", "concert", "performance", "stage", "tour", "acoustic", "unplugged", "mtv", "bbc", "radio", "session"
+
+**Track Filtering:**
+- `ignore_different_artists`: Within albums, skips individual tracks by artists other than the requested artist
+- `separate_tracks_skip_downloaded`: Skips separate tracks that have already been downloaded as part of albums
+
+**Examples:**
+
+**Conservative Download (Current Default):**
+```json5
+{
+    "strict_artist_match": true,
+    "ignore_different_artists": true,
+    "remove_collectors_editions": true,
+    "remove_live_recordings": true
+}
+```
+- Only downloads albums by the exact artist
+- Only downloads tracks by the exact artist within those albums
+- Skips collector editions and live recordings
+
+**Complete Album Download:**
+```json5
+{
+    "strict_artist_match": true,
+    "ignore_different_artists": false,
+    "remove_collectors_editions": false,
+    "remove_live_recordings": false
+}
+```
+- Downloads albums by the exact artist
+- Downloads ALL tracks within those albums (including guest features)
+- Includes collector editions and live recordings
+
+**Most Permissive:**
+```json5
+{
+    "strict_artist_match": false,
+    "ignore_different_artists": false,
+    "remove_collectors_editions": false,
+    "remove_live_recordings": false
+}
+```
+- Downloads all albums where the artist appears (credited or main)
+- Downloads all tracks within those albums
+- Includes all types of releases
+
+#### Quality Enforcement Details
+
+When `strict_quality_download` is enabled, the following quality requirements are enforced:
+
+| Quality Setting | Allowed Codecs | Additional Requirements |
+|----------------|----------------|------------------------|
+| **lossless** | FLAC, ALAC, WAV | Any bit depth/sample rate |
+| **hifi** | FLAC | >16bit OR >44.1kHz sample rate |
+| **high** | MP3, AAC, HE-AAC, Vorbis, Opus | ≥256kbps bitrate |
+| **medium** | MP3, AAC, HE-AAC, Vorbis, Opus | 128-255kbps bitrate |
+| **low** | MP3, AAC, HE-AAC, Vorbis, Opus | <128kbps bitrate |
+
+**Example Error Log Entry:**
+```
+Strict quality download failed: Requested quality "lossless" unavailable for: Artist Name [123]/Album Name [456]/Track Name [789] (codec: MP3, bitrate: 320, bit_depth: 16, sample_rate: 44.1)
+```
+
+**Benefits:**
+- Prevents downloading tracks that don't meet your quality standards
+- Avoids creating empty folders when no tracks meet quality requirements
+- Provides detailed logging of failed downloads for review
+- Works with all download types: albums, artists, playlists, and individual tracks
 
 ### Usage Examples
 
@@ -325,6 +413,38 @@ This will only download lossy formats (MP3, AAC, etc.) with bitrates of 256kbps 
 ```
 This will attempt to download lossless quality but fall back to the best available quality if lossless is not available.
 
+#### Artist Download Examples
+
+**Example 1: Download only studio albums by exact artist**
+```json5
+{
+    "strict_artist_match": true,
+    "ignore_different_artists": true,
+    "remove_collectors_editions": true,
+    "remove_live_recordings": true
+}
+```
+
+**Example 2: Download complete albums (including guest features)**
+```json5
+{
+    "strict_artist_match": true,
+    "ignore_different_artists": false,
+    "remove_collectors_editions": false,
+    "remove_live_recordings": false
+}
+```
+
+**Example 3: Download everything the artist appears on**
+```json5
+{
+    "strict_artist_match": false,
+    "ignore_different_artists": false,
+    "remove_collectors_editions": false,
+    "remove_live_recordings": false
+}
+```
+
 #### Console Output Examples
 
 **When tracks meet quality requirements:**
@@ -345,9 +465,17 @@ Track 1/10
 === Track 789 failed due to strict quality requirements ===
 ```
 
-**When no tracks meet requirements:**
+**When tracks are skipped due to artist filtering:**
 ```
-=== Album Album Name skipped - no tracks meet quality requirements ===
+Track 1/10
+        Track is not from the correct artist, skipping
+```
+
+**When albums are filtered out:**
+```
+Skipping collector edition: Album Name (Deluxe Edition)
+Skipping live recording: Album Name (Live)
+Skipping different artist: Album Name (by Different Artist)
 ```
 
 #### Troubleshooting
@@ -363,6 +491,12 @@ A: Yes, strict quality download works with albums, artists, playlists, and indiv
 
 **Q: Will folders be created if no tracks meet quality requirements?**
 A: No, folders and cover art are only created when at least one track will be downloaded.
+
+**Q: Why are some tracks being skipped during artist downloads?**
+A: Check your `ignore_different_artists` setting. If enabled, tracks by other artists within albums will be skipped.
+
+**Q: How do I download complete albums with guest features?**
+A: Set `ignore_different_artists` to `false` to download all tracks within albums, including guest appearances.
 
 <!-- Contact -->
 ## Contact
