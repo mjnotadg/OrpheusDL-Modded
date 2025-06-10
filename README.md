@@ -137,7 +137,7 @@ uses `album_format` in the `playlist_format` folder
 `source_subdirectories`: If enabled, creates service-specific subdirectories (e.g., "Qobuz", "Tidal", "Deezer") 
 within the download path. This helps organize downloads by their source service.
 
-`disc_subdirectories`: If enabled, creates "Disc N" subdirectories for multi-disc albums instead of the default "CD N" format.
+`disc_subdirectories`: If enabled, creates "Disc N" subdirectories for multi-disc albums. If disabled, no disc subdirectories are created and all tracks are placed directly in the album folder.
 
 #### Format variables
 
