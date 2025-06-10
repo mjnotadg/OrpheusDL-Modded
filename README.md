@@ -87,8 +87,7 @@ loaded module. You'll find the configuration file here: `config/settings.json`
 {
     "download_path": "./downloads/",
     "download_quality": "hifi",
-    "search_limit": 10,
-    "source_subdirectories": false
+    "search_limit": 10
 }
 ```
 
@@ -105,34 +104,6 @@ loaded module. You'll find the configuration file here: `config/settings.json`
 
 `search_limit`: How many search results are shown
 
-`source_subdirectories`: When enabled, creates separate subdirectories for each service (e.g., "Qobuz", "Tidal", "Deezer") within the download path. This helps organize downloads by their source service.
-
-
-### Global/Artist Downloading
-
-```json5
-{
-    "return_credited_albums": true,
-    "separate_tracks_skip_downloaded": true,
-    "filter_collectors_editions": false,
-    "filter_live_recordings": false,
-    "filter_other_artists": true
-}
-```
-
-| Option                        | Info                                                                                     |
-|-------------------------------|------------------------------------------------------------------------------------------|
-| return_credited_albums        | Include albums where the artist is credited but not the main artist                     |
-| separate_tracks_skip_downloaded | Skip tracks that are already part of downloaded albums                                  |
-| filter_collectors_editions    | Skip albums that appear to be collector's editions, deluxe versions, etc.               |
-| filter_live_recordings        | Skip albums that appear to be live recordings, concerts, etc.                           |
-| filter_other_artists          | Skip albums where the artist is different from the requested artist                     |
-
-**Note:** 
-- **The filtering options use keyword matching on album names.**
-- **Collector's editions are detected by keywords like "collector", "deluxe", "expanded", "bonus", "special", "anniversary", "remastered", "reissue", "limited".**
-- **Live recordings are detected by keywords like "live", "concert", "performance", "stage", "tour", "acoustic", "unplugged", "mtv", "bbc", "radio", "session".**
-
 
 ### Global/Formatting:
 
@@ -143,7 +114,9 @@ loaded module. You'll find the configuration file here: `config/settings.json`
     "track_filename_format": "{track_number}. {name}",
     "single_full_path_format": "{name}",
     "enable_zfill": true,
-    "force_album_format": false
+    "force_album_format": false,
+    "source_subdirectories": true,
+    "disc_subdirectories": true
 }
 ```
 
@@ -161,6 +134,10 @@ corresponding number has more than 2 digits
 `force_album_format`: Forces the `album_format` for tracks instead of the `single_full_path_format` and also
 uses `album_format` in the `playlist_format` folder 
 
+`source_subdirectories`: If enabled, creates service-specific subdirectories (e.g., "Qobuz", "Tidal", "Deezer") 
+within the download path. This helps organize downloads by their source service.
+
+`disc_subdirectories`: If enabled, creates "Disc N" subdirectories for multi-disc albums instead of the default "CD N" format.
 
 #### Format variables
 
@@ -254,6 +231,43 @@ selected module
 | embed_lyrics        | Embeds the (unsynced) lyrics inside every track                                                                                                                     |
 | embed_synced_lyrics | Embeds the synced lyrics inside every track (needs `embed_lyrics` to be enabled) (required for [Roon](https://community.roonlabs.com/t/1-7-lyrics-tag-guide/85182)) |
 | save_synced_lyrics  | Saves the synced lyrics inside a  `.lrc` file in the same directory as the track with the same `track_format` variables                                             |
+
+### Global/Advanced
+
+```json5
+{
+    "advanced_login_system": false,
+    "codec_conversions": {
+        "alac": "flac",
+        "wav": "flac"
+    },
+    "conversion_flags": {
+        "flac": {
+            "compression_level": "5"
+        }
+    },
+    "conversion_keep_original": false,
+    "cover_variance_threshold": 8,
+    "debug_mode": false,
+    "disable_subscription_checks": false,
+    "enable_undesirable_conversions": false,
+    "ignore_existing_files": false,
+    "ignore_different_artists": true,
+    "remove_collectors_editions": true,
+    "remove_live_recordings": true,
+    "strict_artist_match": true,
+    "log_unavailable_tracks": true
+}
+```
+
+| Option                        | Info                                                                                     |
+|-------------------------------|------------------------------------------------------------------------------------------|
+| remove_collectors_editions    | If enabled, filters out collector's editions when downloading artists. Detected by keywords: collector, deluxe, expanded, bonus, special, anniversary, remastered, reissue, limited |
+| remove_live_recordings        | If enabled, filters out live recordings when downloading artists. Detected by keywords: live, concert, performance, stage, tour, acoustic, unplugged, mtv, bbc, radio, session |
+| strict_artist_match           | If enabled, only downloads albums where the album artist exactly matches the requested artist name (case-insensitive) |
+| log_unavailable_tracks        | If enabled, logs failed track downloads to `unavailable_tracks.log` with track ID, name, album, and artists |
+
+**Note:** The filtering options (`remove_collectors_editions`, `remove_live_recordings`, and `strict_artist_match`) only apply when downloading artists, not individual albums or tracks.
 
 <!-- Contact -->
 ## Contact
