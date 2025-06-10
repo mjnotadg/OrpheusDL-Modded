@@ -407,8 +407,6 @@ class Downloader:
         else:
             if track_info.tags.total_discs and track_info.tags.total_discs > 1 and self.global_settings['formatting'].get('disc_subdirectories', False):
                 album_location += f'Disc {track_info.tags.disc_number!s}/'
-            elif track_info.tags.total_discs and track_info.tags.total_discs > 1:
-                album_location += f'CD {track_info.tags.disc_number!s}/'
             track_location_name = album_location + self.global_settings['formatting']['track_filename_format'].format(**track_tags)
         # fix file byte limit
         track_location_name = fix_byte_limit(track_location_name)
