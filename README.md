@@ -87,7 +87,8 @@ loaded module. You'll find the configuration file here: `config/settings.json`
 {
     "download_path": "./downloads/",
     "download_quality": "hifi",
-    "search_limit": 10
+    "search_limit": 10,
+    "strict_quality_download": false
 }
 ```
 
@@ -104,6 +105,30 @@ loaded module. You'll find the configuration file here: `config/settings.json`
 
 `search_limit`: How many search results are shown
 
+`strict_quality_download`: If enabled, tracks will only be downloaded if the requested quality is available. If the quality is unavailable, the track will be skipped and an error will be logged to `strict_quality_errors.log` with details about the failed download.
+
+#### Quality Enforcement Details
+
+When `strict_quality_download` is enabled, the following quality requirements are enforced:
+
+| Quality Setting | Allowed Codecs | Additional Requirements |
+|----------------|----------------|------------------------|
+| **lossless** | FLAC, ALAC, WAV | Any bit depth/sample rate |
+| **hifi** | FLAC | >16bit OR >44.1kHz sample rate |
+| **high** | MP3, AAC, HE-AAC, Vorbis, Opus | ≥256kbps bitrate |
+| **medium** | MP3, AAC, HE-AAC, Vorbis, Opus | 128-255kbps bitrate |
+| **low** | MP3, AAC, HE-AAC, Vorbis, Opus | <128kbps bitrate |
+
+**Example Error Log Entry:**
+```
+Strict quality download failed: Requested quality "lossless" unavailable for: Artist Name [123]/Album Name [456]/Track Name [789] (codec: MP3, bitrate: 320, bit_depth: 16, sample_rate: 44.1)
+```
+
+**Benefits:**
+- Prevents downloading tracks that don't meet your quality standards
+- Avoids creating empty folders when no tracks meet quality requirements
+- Provides detailed logging of failed downloads for review
+- Works with all download types: albums, artists, playlists, and individual tracks
 
 ### Global/Formatting:
 
@@ -268,6 +293,76 @@ selected module
 | log_unavailable_tracks        | If enabled, logs failed track downloads to `unavailable_tracks.log` with track ID, name, album, and artists |
 
 **Note:** The filtering options (`remove_collectors_editions`, `remove_live_recordings`, and `strict_artist_match`) only apply when downloading artists, not individual albums or tracks.
+
+### Usage Examples
+
+#### Strict Quality Download Examples
+
+**Example 1: Download only lossless tracks**
+```json5
+{
+    "download_quality": "lossless",
+    "strict_quality_download": true
+}
+```
+This will only download FLAC, ALAC, or WAV files. Any MP3, AAC, or other lossy formats will be skipped.
+
+**Example 2: Download only high-quality lossy tracks**
+```json5
+{
+    "download_quality": "high",
+    "strict_quality_download": true
+}
+```
+This will only download lossy formats (MP3, AAC, etc.) with bitrates of 256kbps or higher.
+
+**Example 3: Download with quality fallback (default behavior)**
+```json5
+{
+    "download_quality": "lossless",
+    "strict_quality_download": false
+}
+```
+This will attempt to download lossless quality but fall back to the best available quality if lossless is not available.
+
+#### Console Output Examples
+
+**When tracks meet quality requirements:**
+```
+Track 1/10
+=== Downloading track Track Name (123456) ===
+        Album: Album Name (789)
+        Artists: Artist Name (456)
+        Codec: FLAC, bitrate: 1411kbps, bit depth: 16bit, sample rate: 44.1kHz
+        Downloading track file
+        === Track 123456 downloaded ===
+```
+
+**When tracks fail quality requirements:**
+```
+Track 1/10
+        Strict quality download failed: Requested quality "lossless" unavailable for: Artist [123]/Album [456]/Track [789] (codec: MP3, bitrate: 320, bit_depth: 16, sample_rate: 44.1)
+=== Track 789 failed due to strict quality requirements ===
+```
+
+**When no tracks meet requirements:**
+```
+=== Album Album Name skipped - no tracks meet quality requirements ===
+```
+
+#### Troubleshooting
+
+**Q: Why are all my tracks being skipped?**
+A: Check your `download_quality` setting and ensure the tracks are actually available in that quality. Some older releases may only be available in lossy formats.
+
+**Q: Where can I find details about failed downloads?**
+A: Failed downloads are logged to `strict_quality_errors.log` in the same directory where you run OrpheusDL.
+
+**Q: Can I use strict quality with any download type?**
+A: Yes, strict quality download works with albums, artists, playlists, and individual tracks.
+
+**Q: Will folders be created if no tracks meet quality requirements?**
+A: No, folders and cover art are only created when at least one track will be downloaded.
 
 <!-- Contact -->
 ## Contact
