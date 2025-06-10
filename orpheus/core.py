@@ -36,15 +36,11 @@ class Orpheus:
             "general": {
                 "download_path": "./downloads/",
                 "download_quality": "hifi",
-                "search_limit": 10,
-                "source_subdirectories": False
+                "search_limit": 10
             },
             "artist_downloading":{
                 "return_credited_albums": True,
-                "separate_tracks_skip_downloaded": True,
-                "filter_collectors_editions": False,
-                "filter_live_recordings": False,
-                "filter_other_artists": True
+                "separate_tracks_skip_downloaded": True
             },
             "formatting": {
                 "album_format": "{name}{explicit}",
@@ -52,7 +48,9 @@ class Orpheus:
                 "track_filename_format": "{track_number}. {name}",
                 "single_full_path_format": "{name}",
                 "enable_zfill": True,
-                "force_album_format": False
+                "force_album_format": False,
+                "source_subdirectories": True,
+                "disc_subdirectories": True
             },
             "codecs": {
                 "proprietary_codecs": False,
@@ -100,7 +98,11 @@ class Orpheus:
                 "disable_subscription_checks": False,
                 "enable_undesirable_conversions": False,
                 "ignore_existing_files": False,
-                "ignore_different_artists": True
+                "ignore_different_artists": True,
+                "remove_collectors_editions": True,
+                "remove_live_recordings": True,
+                "strict_artist_match": True,
+                "log_unavailable_tracks": True
             }
         }
 
