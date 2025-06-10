@@ -87,7 +87,8 @@ loaded module. You'll find the configuration file here: `config/settings.json`
 {
     "download_path": "./downloads/",
     "download_quality": "hifi",
-    "search_limit": 10
+    "search_limit": 10,
+    "source_subdirectories": false
 }
 ```
 
@@ -103,6 +104,31 @@ loaded module. You'll find the configuration file here: `config/settings.json`
 **NOTE: The `download_quality` really depends on the used modules, so check out the modules README.md**
 
 `search_limit`: How many search results are shown
+
+`source_subdirectories`: When enabled, creates separate subdirectories for each service (e.g., "Qobuz", "Tidal", "Deezer") within the download path. This helps organize downloads by their source service.
+
+
+### Global/Artist Downloading
+
+```json5
+{
+    "return_credited_albums": true,
+    "separate_tracks_skip_downloaded": true,
+    "filter_collectors_editions": false,
+    "filter_live_recordings": false,
+    "filter_other_artists": true
+}
+```
+
+| Option                        | Info                                                                                     |
+|-------------------------------|------------------------------------------------------------------------------------------|
+| return_credited_albums        | Include albums where the artist is credited but not the main artist                     |
+| separate_tracks_skip_downloaded | Skip tracks that are already part of downloaded albums                                  |
+| filter_collectors_editions    | Skip albums that appear to be collector's editions, deluxe versions, etc.               |
+| filter_live_recordings        | Skip albums that appear to be live recordings, concerts, etc.                           |
+| filter_other_artists          | Skip albums where the artist is different from the requested artist                     |
+
+**Note: The filtering options use keyword matching on album names. Collector's editions are detected by keywords like "collector", "deluxe", "expanded", "bonus", "special", "anniversary", "remastered", "reissue", "limited". Live recordings are detected by keywords like "live", "concert", "performance", "stage", "tour", "acoustic", "unplugged", "mtv", "bbc", "radio", "session".**
 
 
 ### Global/Formatting:
