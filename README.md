@@ -128,7 +128,10 @@ loaded module. You'll find the configuration file here: `config/settings.json`
 | filter_live_recordings        | Skip albums that appear to be live recordings, concerts, etc.                           |
 | filter_other_artists          | Skip albums where the artist is different from the requested artist                     |
 
-**Note: The filtering options use keyword matching on album names. Collector's editions are detected by keywords like "collector", "deluxe", "expanded", "bonus", "special", "anniversary", "remastered", "reissue", "limited". Live recordings are detected by keywords like "live", "concert", "performance", "stage", "tour", "acoustic", "unplugged", "mtv", "bbc", "radio", "session".**
+**Note:** 
+- **The filtering options use keyword matching on album names.**
+- **Collector's editions are detected by keywords like "collector", "deluxe", "expanded", "bonus", "special", "anniversary", "remastered", "reissue", "limited".**
+- **Live recordings are detected by keywords like "live", "concert", "performance", "stage", "tour", "acoustic", "unplugged", "mtv", "bbc", "radio", "session".**
 
 
 ### Global/Formatting:
