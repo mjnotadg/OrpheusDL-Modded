@@ -433,70 +433,139 @@ class Downloader:
         return successful_tracks if 'successful_tracks' in locals() else []
 
     def download_artist(self, artist_id, extra_kwargs={}):
-        artist_info: ArtistInfo = self.service.get_artist_info(artist_id, self.global_settings['artist_downloading']['return_credited_albums'], **extra_kwargs)
-        artist_name = artist_info.name
+        # Get basic artist info first (just the name)
+        artist_name = self.service.session.get_artist_name(artist_id) if hasattr(self.service, 'session') else None
+        if not artist_name:
+            # Fallback to the original method if session is not available
+            artist_info: ArtistInfo = self.service.get_artist_info(artist_id, self.global_settings['artist_downloading']['return_credited_albums'], **extra_kwargs)
+            artist_name = artist_info.name
+        else:
+            # Create a minimal artist_info for compatibility
+            artist_info = ArtistInfo(name=artist_name, albums=[], tracks=[])
 
         self.set_indent_number(1)
-
-        number_of_albums = len(artist_info.albums)
-        number_of_tracks = len(artist_info.tracks)
-
         self.print(f'=== Downloading artist {artist_name} ({artist_id}) ===', drop_level=1)
-        if number_of_albums: self.print(f'Number of albums: {number_of_albums!s}')
-        if number_of_tracks: self.print(f'Number of tracks: {number_of_tracks!s}')
         self.print(f'Service: {self.module_settings[self.service_name].service_name}')
         
         # --- SOURCE SUBDIRECTORIES AT ROOT LEVEL ---
-        # Don't create additional artist folder since album_format already contains artist path
         base_path = self.path
         if self.global_settings['formatting'].get('source_subdirectories', False):
             service_folder = self.module_settings[self.service_name].service_name
             base_path += f'{service_folder}/'
 
-        # --- FILTER ALBUMS ---
-        filtered_albums = []
-        for album_id in artist_info.albums:
-            album_info = self.service.get_album_info(album_id)
-            
-            # Remove collector's editions
-            if self.global_settings['advanced'].get('remove_collectors_editions', False):
-                collectors_keywords = ['collector', 'deluxe', 'expanded', 'bonus', 'special', 'anniversary', 'remastered', 'reissue', 'limited']
-                if any(keyword in album_info.name.lower() for keyword in collectors_keywords):
-                    continue
-            
-            # Remove live recordings
-            if self.global_settings['advanced'].get('remove_live_recordings', False):
-                live_keywords = ['live', 'concert', 'performance', 'stage', 'tour', 'acoustic', 'unplugged', 'mtv', 'bbc', 'radio', 'session']
-                if any(keyword in album_info.name.lower() for keyword in live_keywords):
-                    continue
-            
-            # Strict artist match
-            if self.global_settings['advanced'].get('strict_artist_match', False):
-                if album_info.artist.strip().lower() != artist_name.strip().lower():
-                    continue
-            filtered_albums.append(album_id)
-        number_of_albums = len(filtered_albums)
-
-        self.set_indent_number(2)
+        # --- PROCESS ALBUMS IN BATCHES ---
+        batch_size = 50  # Process 50 albums at a time
+        start = 0
+        album_count = 0
+        filtered_album_count = 0
         tracks_downloaded = []
-        for index, album_id in enumerate(filtered_albums, start=1):
-            print()
-            self.print(f'Album {index}/{number_of_albums}', drop_level=1)
-            tracks_downloaded += self.download_album(album_id, artist_name=artist_name, path=base_path, indent_level=2, extra_kwargs=artist_info.album_extra_kwargs)
+        
+        self.print('Processing albums in batches...', drop_level=1)
+        
+        while True:
+            # Get a batch of album IDs
+            if hasattr(self.service, 'session'):
+                # Use direct API call for pagination
+                album_ids = self.service.session.get_artist_album_ids(
+                    artist_id, 
+                    start, 
+                    batch_size, 
+                    self.global_settings['artist_downloading']['return_credited_albums']
+                )
+            else:
+                # Fallback: get all albums and slice them
+                all_albums = self.service.session.get_artist_album_ids(
+                    artist_id, 
+                    0, 
+                    -1, 
+                    self.global_settings['artist_downloading']['return_credited_albums']
+                )
+                album_ids = all_albums[start:start + batch_size]
+            
+            # If no more albums, break
+            if not album_ids:
+                break
+                
+            album_count += len(album_ids)
+            self.print(f'Processing batch: albums {start + 1}-{start + len(album_ids)} (total found so far: {album_count})', drop_level=1)
+            
+            # Process each album in the batch
+            for album_id in album_ids:
+                try:
+                    # Get album info
+                    album_info = self.service.get_album_info(album_id)
+                    
+                    # Apply filters
+                    should_skip = False
+                    
+                    # Remove collector's editions
+                    if self.global_settings['advanced'].get('remove_collectors_editions', False):
+                        collectors_keywords = ['collector', 'deluxe', 'expanded', 'bonus', 'special', 'anniversary', 'remastered', 'reissue', 'limited']
+                        if any(keyword in album_info.name.lower() for keyword in collectors_keywords):
+                            self.print(f'Skipping collector edition: {album_info.name}', drop_level=2)
+                            should_skip = True
+                    
+                    # Remove live recordings
+                    if not should_skip and self.global_settings['advanced'].get('remove_live_recordings', False):
+                        live_keywords = ['live', 'concert', 'performance', 'stage', 'tour', 'acoustic', 'unplugged', 'mtv', 'bbc', 'radio', 'session']
+                        if any(keyword in album_info.name.lower() for keyword in live_keywords):
+                            self.print(f'Skipping live recording: {album_info.name}', drop_level=2)
+                            should_skip = True
+                    
+                    # Strict artist match
+                    if not should_skip and self.global_settings['advanced'].get('strict_artist_match', False):
+                        if album_info.artist.strip().lower() != artist_name.strip().lower():
+                            self.print(f'Skipping different artist: {album_info.name} (by {album_info.artist})', drop_level=2)
+                            should_skip = True
+                    
+                    if should_skip:
+                        continue
+                    
+                    # Album passed all filters, download it
+                    filtered_album_count += 1
+                    print()
+                    self.print(f'Album {filtered_album_count}: {album_info.name}', drop_level=1)
+                    
+                    # Download the album and collect track IDs
+                    album_tracks = self.download_album(album_id, artist_name=artist_name, path=base_path, indent_level=2, extra_kwargs=artist_info.album_extra_kwargs)
+                    tracks_downloaded.extend(album_tracks)
+                    
+                except Exception as e:
+                    self.print(f'Error processing album {album_id}: {str(e)}', drop_level=2)
+                    continue
+            
+            # Move to next batch
+            start += batch_size
+            
+            # If we got fewer albums than requested, we've reached the end
+            if len(album_ids) < batch_size:
+                break
 
+        # --- PROCESS SEPARATE TRACKS ---
         self.set_indent_number(2)
         skip_tracks = self.global_settings['artist_downloading']['separate_tracks_skip_downloaded']
-        tracks_to_download = [i for i in artist_info.tracks if (i not in tracks_downloaded and skip_tracks) or not skip_tracks]
-        number_of_tracks_new = len(tracks_to_download)
-        for index, track_id in enumerate(tracks_to_download, start=1):
-            print()
-            self.print(f'Track {index}/{number_of_tracks_new}', drop_level=1)
-            self.download_track(track_id, album_location=base_path, main_artist=artist_name, number_of_tracks=1, indent_level=2, extra_kwargs=artist_info.track_extra_kwargs)
+        
+        # Only process separate tracks if we have them and the setting allows
+        if hasattr(artist_info, 'tracks') and artist_info.tracks:
+            tracks_to_download = [i for i in artist_info.tracks if (i not in tracks_downloaded and skip_tracks) or not skip_tracks]
+            number_of_tracks_new = len(tracks_to_download)
+            
+            if number_of_tracks_new > 0:
+                self.print(f'Processing {number_of_tracks_new} separate tracks...', drop_level=1)
+                for index, track_id in enumerate(tracks_to_download, start=1):
+                    print()
+                    self.print(f'Track {index}/{number_of_tracks_new}', drop_level=1)
+                    self.download_track(track_id, album_location=base_path, main_artist=artist_name, number_of_tracks=1, indent_level=2, extra_kwargs=artist_info.track_extra_kwargs)
 
+        # --- FINAL SUMMARY ---
         self.set_indent_number(1)
-        tracks_skipped = number_of_tracks - number_of_tracks_new
-        if tracks_skipped > 0: self.print(f'Tracks skipped: {tracks_skipped!s}', drop_level=1)
-        self.print(f'=== Artist {artist_name} downloaded ===', drop_level=1)
+        self.print(f'=== Artist {artist_name} download completed ===', drop_level=1)
+        self.print(f'Total albums found: {album_count}', drop_level=1)
+        self.print(f'Albums downloaded: {filtered_album_count}', drop_level=1)
+        if hasattr(artist_info, 'tracks') and artist_info.tracks:
+            tracks_skipped = len(artist_info.tracks) - len(tracks_to_download) if 'tracks_to_download' in locals() else 0
+            if tracks_skipped > 0:
+                self.print(f'Tracks skipped: {tracks_skipped}', drop_level=1)
 
     def download_track(self, track_id, album_location='', main_artist='', track_index=0, number_of_tracks=0, cover_temp_location='', indent_level=1, m3u_playlist=None, extra_kwargs={}):
         quality_tier = QualityEnum[self.global_settings['general']['download_quality'].upper()]
