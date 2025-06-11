@@ -64,7 +64,31 @@ class Downloader:
             # add an extra new line to the extended format
             f.write('\n') if self.global_settings['playlist']['extended_m3u'] else None
 
-    def _check_strict_quality_requirement(self, track_id, track_info, extra_kwargs={}):
+    def _log_unavailable_track(self, track_id, track_info, album_path):
+        """Log unavailable tracks to error.txt in the album folder"""
+        if not self.global_settings['advanced'].get('log_unavailable_tracks', False):
+            return
+        
+        error_msg = f'Unavailable: {track_info.artists[0] if track_info.artists else "Unknown"} [{track_info.artist_id}]/{track_info.album} [{track_info.album_id}]/{track_info.name} [{track_id}]'
+        
+        # Create error.txt in the album folder
+        error_file = os.path.join(album_path, 'error.txt') if album_path else 'unavailable_tracks.log'
+        with open(error_file, 'a', encoding='utf-8') as logf:
+            logf.write(f'{error_msg}\n')
+
+    def _log_strict_quality_error(self, track_id, track_info, album_path, requested_quality, codec, bitrate, bit_depth, sample_rate):
+        """Log strict quality errors to strict_quality_error.txt in the album folder"""
+        if not self.global_settings['general'].get('strict_quality_download', False):
+            return
+        
+        error_msg = f'Not meet quality requirements: {track_info.artists[0] if track_info.artists else "Unknown"} [{track_info.artist_id}]/{track_info.album} [{track_info.album_id}]/{track_info.name} [{track_id}]'
+        
+        # Create strict_quality_error.txt in the album folder
+        error_file = os.path.join(album_path, 'strict_quality_error.txt') if album_path else 'strict_quality_errors.log'
+        with open(error_file, 'a', encoding='utf-8') as logf:
+            logf.write(f'{error_msg}\n')
+
+    def _check_strict_quality_requirement(self, track_id, track_info, album_path=None, extra_kwargs={}):
         """Check if strict quality download is enabled and if the requested quality is available"""
         if not self.global_settings['general'].get('strict_quality_download', False):
             return True  # Strict quality not enabled, allow download
@@ -93,9 +117,7 @@ class Downloader:
         if track_info.error or track_info.codec == CodecEnum.NONE or not allowed:
             error_msg = f'Strict quality download failed: Requested quality "{requested_quality}" unavailable for: {track_info.artists[0] if track_info.artists else "Unknown"} [{track_info.artist_id}]/{track_info.album} [{track_info.album_id}]/{track_info.name} [{track_id}] (codec: {codec.name}, bitrate: {bitrate}, bit_depth: {bit_depth}, sample_rate: {sample_rate})'
             self.print(error_msg)
-            # Log to error file
-            with open('strict_quality_errors.log', 'a', encoding='utf-8') as logf:
-                logf.write(f'{error_msg}\n')
+            self._log_strict_quality_error(track_id, track_info, album_path, requested_quality, codec, bitrate, bit_depth, sample_rate)
             self.print(f'=== Track {track_id} failed due to strict quality requirements ===', drop_level=1)
             return False
         return True
@@ -151,8 +173,16 @@ class Downloader:
                 )
                 track_info: TrackInfo = self.loaded_modules[original_service].get_track_info(track_id, quality_tier, codec_options, **playlist_info.track_extra_kwargs)
                 
+                # Check if track is unavailable first
+                if track_info.error:
+                    self._log_unavailable_track(track_id, track_info, playlist_path)
+                    self.print(track_info.error)
+                    self.print(f'=== Track {track_id} failed ===', drop_level=1)
+                    tracks_errored.add(f'{track_info.name} - {track_info.artists[0]}')
+                    continue
+                
                 # Check quality requirements
-                if not self._check_strict_quality_requirement(track_id, track_info):
+                if not self._check_strict_quality_requirement(track_id, track_info, playlist_path):
                     tracks_errored.add(f'{track_info.name} - {track_info.artists[0]}')
                     continue
                 
@@ -248,8 +278,17 @@ class Downloader:
                 )
                 track_info: TrackInfo = self.service.get_track_info(track_id, quality_tier, codec_options, **playlist_info.track_extra_kwargs)
                 
+                # Check if track is unavailable first
+                if track_info.error:
+                    self._log_unavailable_track(track_id, track_info, playlist_path)
+                    self.print(track_info.error)
+                    self.print(f'=== Track {track_id} failed ===', drop_level=1)
+                    tracks_errored.add(f'{track_info.name} - {track_info.artists[0]}')
+                    continue
+                
                 # Check quality requirements
-                if not self._check_strict_quality_requirement(track_id, track_info):
+                if not self._check_strict_quality_requirement(track_id, track_info, playlist_path):
+                    tracks_errored.add(f'{track_info.name} - {track_info.artists[0]}')
                     continue
                 
                 # Create folder and download covers on first successful track
@@ -386,14 +425,23 @@ class Downloader:
                 )
                 track_info: TrackInfo = self.service.get_track_info(track_id, quality_tier, codec_options, **album_info.track_extra_kwargs)
                 
+                # Create album path first for logging purposes
+                if album_path is None:
+                    album_path = self._create_album_location(path, album_id, album_info)
+                
+                # Check if track is unavailable first
+                if track_info.error:
+                    self._log_unavailable_track(track_id, track_info, album_path)
+                    self.print(track_info.error)
+                    self.print(f'=== Track {track_id} failed ===', drop_level=1)
+                    continue
+                
                 # Check quality requirements
-                if not self._check_strict_quality_requirement(track_id, track_info):
+                if not self._check_strict_quality_requirement(track_id, track_info, album_path):
                     continue  # Skip this track
                 
                 # Create folder and download covers on first successful track
-                if album_path is None:
-                    album_path = self._create_album_location(path, album_id, album_info)
-                    
+                if not successful_tracks:
                     if album_info.booklet_url and not os.path.exists(album_path + 'Booklet.pdf'):
                         self.print('Downloading booklet')
                         download_file(album_info.booklet_url, album_path + 'Booklet.pdf')
@@ -424,8 +472,18 @@ class Downloader:
             )
             track_info: TrackInfo = self.service.get_track_info(album_info.tracks[0], quality_tier, codec_options, **album_info.track_extra_kwargs)
             
-            if self._check_strict_quality_requirement(album_info.tracks[0], track_info):
-                return self.download_track(album_info.tracks[0], album_location=path, number_of_tracks=1, main_artist=artist_name, indent_level=indent_level, extra_kwargs=album_info.track_extra_kwargs)
+            # Create album path for logging purposes
+            album_path = self._create_album_location(path, album_id, album_info)
+            
+            # Check if track is unavailable first
+            if track_info.error:
+                self._log_unavailable_track(album_info.tracks[0], track_info, album_path)
+                self.print(track_info.error)
+                self.print(f'=== Track {album_info.tracks[0]} failed ===', drop_level=1)
+                return []
+            
+            if self._check_strict_quality_requirement(album_info.tracks[0], track_info, album_path):
+                return self.download_track(album_info.tracks[0], album_location=album_path, number_of_tracks=1, main_artist=artist_name, indent_level=indent_level, extra_kwargs=album_info.track_extra_kwargs)
             else:
                 self.print(f'=== Single track album {album_info.name} skipped - does not meet quality requirements ===', drop_level=1)
                 return []
@@ -575,7 +633,13 @@ class Downloader:
         )
         track_info: TrackInfo = self.service.get_track_info(track_id, quality_tier, codec_options, **extra_kwargs)
         
-        if not self._check_strict_quality_requirement(track_id, track_info):
+        if track_info.error:
+            self._log_unavailable_track(track_id, track_info, album_location)
+            self.print(track_info.error)
+            self.print(f'=== Track {track_id} failed ===', drop_level=1)
+            return False
+
+        if not self._check_strict_quality_requirement(track_id, track_info, album_location):
             return False
         
         if main_artist.lower() not in [i.lower() for i in track_info.artists] and self.global_settings['advanced']['ignore_different_artists'] and self.download_mode is DownloadTypeEnum.artist:
@@ -611,15 +675,6 @@ class Downloader:
         if track_info.bit_depth: to_print += f', bit depth: {track_info.bit_depth!s}bit'
         if track_info.sample_rate: to_print += f', sample rate: {track_info.sample_rate!s}kHz'
         self.print(to_print)
-
-        # Check if track_info returns error, display it and return this function to not download the track
-        if track_info.error:
-            self.print(track_info.error)
-            self.print(f'=== Track {track_id} failed ===', drop_level=1)
-            if self.global_settings['advanced'].get('log_unavailable_tracks', False):
-                with open('unavailable_tracks.log', 'a', encoding='utf-8') as logf:
-                    logf.write(f'Track failed: {track_id} - {track_info.name} - {track_info.album} - {track_info.artists}\n')
-            return False
 
         album_location = album_location.replace('\\', '/')
 
