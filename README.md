@@ -45,7 +45,7 @@ A modular music archival program with enhanced features
 <!-- ABOUT ORPHEUS -->
 ## About OrpheusDL_Modded4
 
-OrpheusDL_Modded4 is an enhanced version of OrpheusDL, a modular music archival tool written in Python which allows archiving from multiple different services. This modded version includes significant improvements for better organization, filtering, and logging capabilities.
+OrpheusDL_Modded is an enhanced version of OrpheusDL, a modular music archival tool written in Python which allows archiving from multiple different services. This modded version includes significant improvements for better organization, filtering, and logging capabilities.
 
 ## Key Enhancements
 
