@@ -2,7 +2,7 @@
 
 <img src='https://svgshare.com/i/__W.svg' title='Orfi_temporary' height="150">
 
-OrpheusDL_Modded
+OrpheusDL_Modded4
 =================
 
 A modular music archival program with enhanced features
@@ -14,7 +14,7 @@ A modular music archival program with enhanced features
 
 ## Table of content
 
-- [About OrpheusDL_Modded](#about-orpheusdl_modded4)
+- [About OrpheusDL_Modded4](#about-orpheusdl_modded4)
 - [Key Enhancements](#key-enhancements)
 - [Getting Started](#getting-started)
     - [Prerequisites](#prerequisites)
@@ -28,6 +28,7 @@ A modular music archival program with enhanced features
     - [Module Defaults](#module-defaults)
     - [Lyrics Settings](#lyrics-settings)
     - [Cover Settings](#cover-settings)
+    - [Tagging Settings](#tagging-settings)
     - [Playlist Settings](#playlist-settings)
     - [Advanced Settings](#advanced-settings)
         - [Enhanced Logging System](#enhanced-logging-system)
@@ -43,9 +44,9 @@ A modular music archival program with enhanced features
 
 
 <!-- ABOUT ORPHEUS -->
-## About OrpheusDL_Modded
+## About OrpheusDL_Modded4
 
-OrpheusDL_Modded is an enhanced version of OrpheusDL, a modular music archival tool written in Python which allows archiving from multiple different services. This modded version includes significant improvements for better organization, filtering, and logging capabilities.
+OrpheusDL_Modded4 is an enhanced version of OrpheusDL, a modular music archival tool written in Python which allows archiving from multiple different services. This modded version includes significant improvements for better organization, filtering, and logging capabilities.
 
 ## Key Enhancements
 
@@ -79,10 +80,16 @@ Quality levels are now ordered from highest to lowest:
 - **Medium** → Lossy formats 128-255kbps
 - **Low** → Lossy formats <128kbps
 
+### 🏷️ **Configurable Metadata Tagging**
+- **Selective tag saving** - choose which metadata tags to save (title, album, artist, ISRC, UPC, etc.)
+- **Tag-only overwrite** - update metadata without re-embedding cover art or re-processing audio
+- **20+ supported tags** - comprehensive metadata support including technical and commercial tags
+- **Flexible configuration** - save all tags or only essential ones based on your needs
+
 <!-- GETTING STARTED -->
 ## Getting Started
 
-Follow these steps to get a local copy of OrpheusDL_Modded up and running:
+Follow these steps to get a local copy of OrpheusDL_Modded4 up and running:
 
 ### Prerequisites
 
@@ -281,6 +288,65 @@ loaded module. You'll find the configuration file here: `config/settings.json`
 | `external_resolution` | integer | `3000` | Resolution (in pixels) of the third party cover |
 | `save_animated_cover` | boolean | `true` | Saves animated covers when supported (often in MPEG-4 format) |
 
+### Tagging Settings
+
+```json5
+{
+    "save_tags": [
+        "title", "album", "artist", "track_number", "total_tracks", "disc_number", "total_discs", "album_artist", "genre", "year", "date", "isrc", "track_length", "upc", "copyright", "composer", "involved_people", "source", "song_id", "album_id"
+    ],
+    "overwrite_tags_only": false
+}
+```
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `save_tags` | array | `["title", "album", "artist", ...]` | List of metadata tags to save. If empty, all available tags will be saved |
+| `overwrite_tags_only` | boolean | `false` | If enabled, only updates metadata tags without re-embedding cover art or overwriting the audio file |
+
+**Supported Tags (alphabetical):**
+- `album` — Album name
+- `album_artist` — Album artist (may differ from track artist)
+- `album_id` — Album ID from source service
+- `artist` — Main artist(s)
+- `comment` — Comment field
+- `composer` — Composer(s)
+- `copyright` — Copyright information
+- `date` — Full release date (YYYY-MM-DD format)
+- `disc_number` — Disc number (for multi-disc albums)
+- `genre` — Music genre(s)
+- `involved_people` — Additional contributors
+- `isrc` — International Standard Recording Code
+- `label` — Record label
+- `song_id` — Track ID from source service
+- `source` — Source service information
+- `title` — Track title
+- `total_discs` — Total number of discs
+- `total_tracks` — Total number of tracks on album
+- `track_length` — Track duration
+- `track_number` — Track number on album
+- `upc` — Universal Product Code
+- `year` — Release year
+
+**Usage Examples:**
+
+1. **Save only essential tags:**
+   ```json
+   "save_tags": ["title", "album", "artist", "track_number", "genre", "year"]
+   ```
+
+2. **Save all available tags (default behavior):**
+   ```json
+   "save_tags": []
+   ```
+
+3. **Only update tags without re-embedding cover:**
+   ```json
+   "overwrite_tags_only": true
+   ```
+
+**Note:** The `overwrite_tags_only` option is useful when you want to update metadata on existing files without re-downloading or re-processing the audio content.
+
 ### Playlist Settings
 
 ```json5
@@ -344,7 +410,7 @@ loaded module. You'll find the configuration file here: `config/settings.json`
 
 #### Enhanced Logging System
 
-OrpheusDL_Modded includes an enhanced logging system that creates separate log files within each album folder to help you track and troubleshoot download issues:
+OrpheusDL_Modded4 includes an enhanced logging system that creates separate log files within each album folder to help you track and troubleshoot download issues:
 
 **Log Files Created:**
 
@@ -382,7 +448,7 @@ downloads/
 
 #### Directory Organization
 
-OrpheusDL_Modded provides enhanced directory organization features:
+OrpheusDL_Modded4 provides enhanced directory organization features:
 
 **Source Subdirectories:**
 When `source_subdirectories: true` is enabled, downloads are organized by service:
@@ -652,7 +718,7 @@ Project Link: [Orpheus Public GitHub Repository](https://github.com/OrfiTeam/Orp
 
 ## Changelog
 
-### Version 4.0 (OrpheusDL_Modded)
+### Version 4.0 (OrpheusDL_Modded4)
 
 #### 🆕 New Features
 - **Enhanced Logging System**: Separate log files for unavailable tracks and quality issues
