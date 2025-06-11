@@ -2,7 +2,7 @@
 
 <img src='https://svgshare.com/i/__W.svg' title='Orfi_temporary' height="150">
 
-OrpheusDL_Modded4
+OrpheusDL_Modded
 =================
 
 A modular music archival program with enhanced features
@@ -14,7 +14,7 @@ A modular music archival program with enhanced features
 
 ## Table of content
 
-- [About OrpheusDL_Modded4](#about-orpheusdl_modded4)
+- [About OrpheusDL_Modded](#about-orpheusdl_modded4)
 - [Key Enhancements](#key-enhancements)
 - [Getting Started](#getting-started)
     - [Prerequisites](#prerequisites)
@@ -43,7 +43,7 @@ A modular music archival program with enhanced features
 
 
 <!-- ABOUT ORPHEUS -->
-## About OrpheusDL_Modded4
+## About OrpheusDL_Modded
 
 OrpheusDL_Modded is an enhanced version of OrpheusDL, a modular music archival tool written in Python which allows archiving from multiple different services. This modded version includes significant improvements for better organization, filtering, and logging capabilities.
 
@@ -82,7 +82,7 @@ Quality levels are now ordered from highest to lowest:
 <!-- GETTING STARTED -->
 ## Getting Started
 
-Follow these steps to get a local copy of OrpheusDL_Modded4 up and running:
+Follow these steps to get a local copy of OrpheusDL_Modded up and running:
 
 ### Prerequisites
 
@@ -344,7 +344,7 @@ loaded module. You'll find the configuration file here: `config/settings.json`
 
 #### Enhanced Logging System
 
-OrpheusDL_Modded4 includes an enhanced logging system that creates separate log files within each album folder to help you track and troubleshoot download issues:
+OrpheusDL_Modded includes an enhanced logging system that creates separate log files within each album folder to help you track and troubleshoot download issues:
 
 **Log Files Created:**
 
@@ -382,7 +382,7 @@ downloads/
 
 #### Directory Organization
 
-OrpheusDL_Modded4 provides enhanced directory organization features:
+OrpheusDL_Modded provides enhanced directory organization features:
 
 **Source Subdirectories:**
 When `source_subdirectories: true` is enabled, downloads are organized by service:
@@ -652,7 +652,7 @@ Project Link: [Orpheus Public GitHub Repository](https://github.com/OrfiTeam/Orp
 
 ## Changelog
 
-### Version 4.0 (OrpheusDL_Modded4)
+### Version 4.0 (OrpheusDL_Modded)
 
 #### 🆕 New Features
 - **Enhanced Logging System**: Separate log files for unavailable tracks and quality issues
