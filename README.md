@@ -2,10 +2,10 @@
 
 <img src='https://svgshare.com/i/__W.svg' title='Orfi_temporary' height="150">
 
-OrpheusDL
-=========
+OrpheusDL_Modded4
+=================
 
-A modular music archival program
+A modular music archival program with enhanced features
 
 [Report Bug](https://github.com/OrfiTeam/OrpheusDL/issues)
 ·
@@ -14,7 +14,8 @@ A modular music archival program
 
 ## Table of content
 
-- [About OrpheusDL](#about-orpheusdl)
+- [About OrpheusDL_Modded4](#about-orpheusdl_modded4)
+- [Key Enhancements](#key-enhancements)
 - [Getting Started](#getting-started)
     - [Prerequisites](#prerequisites)
     - [Installation](#installation)
@@ -29,23 +30,59 @@ A modular music archival program
     - [Cover Settings](#cover-settings)
     - [Playlist Settings](#playlist-settings)
     - [Advanced Settings](#advanced-settings)
+        - [Enhanced Logging System](#enhanced-logging-system)
         - [Artist Downloading Behavior](#artist-downloading-behavior)
         - [Quality Enforcement Details](#quality-enforcement-details)
+        - [Directory Organization](#directory-organization)
+- [Usage Examples](#usage-examples)
+- [Troubleshooting](#troubleshooting)
 - [Contact](#contact)
 - [Acknowledgements](#acknowledgements)
+- [Changelog](#changelog)
 
 
 
 <!-- ABOUT ORPHEUS -->
-## About OrpheusDL
+## About OrpheusDL_Modded4
 
-OrpheusDL is a modular music archival tool written in Python which allows archiving from multiple different services.
+OrpheusDL_Modded4 is an enhanced version of OrpheusDL, a modular music archival tool written in Python which allows archiving from multiple different services. This modded version includes significant improvements for better organization, filtering, and logging capabilities.
 
+## Key Enhancements
+
+### 🎯 **Enhanced Logging System**
+- **Separate log files** for different types of download failures
+- **Album-specific logging** - logs are created in each album folder
+- **Clear categorization** - unavailable tracks vs quality issues
+- **Detailed error tracking** for troubleshooting
+
+### 📁 **Improved Directory Organization**
+- **Source subdirectories** - organize downloads by service (Qobuz, Tidal, Deezer, etc.)
+- **Disc subdirectories** - automatic "Disc N" folders for multi-disc albums
+- **Better folder structure** for easier navigation
+
+### 🔍 **Advanced Filtering Options**
+- **Collector edition filtering** - skip deluxe, expanded, bonus editions
+- **Live recording filtering** - skip live albums, concerts, performances
+- **Strict artist matching** - only download albums by exact artist
+- **Track-level filtering** - skip tracks by different artists within albums
+
+### ⚡ **Strict Quality Download**
+- **Quality enforcement** - only download tracks meeting specified quality
+- **Configurable quality requirements** - set minimum quality standards
+- **Detailed quality logging** - track which quality requirements failed
+
+### 🎵 **Updated Quality Hierarchy**
+Quality levels are now ordered from highest to lowest:
+- **Hifi** → Highest quality (FLAC >16bit OR >44.1kHz)
+- **Lossless** → FLAC, ALAC, WAV (any bit depth/sample rate)
+- **High** → Lossy formats ≥256kbps
+- **Medium** → Lossy formats 128-255kbps
+- **Low** → Lossy formats <128kbps
 
 <!-- GETTING STARTED -->
 ## Getting Started
 
-Follow these steps to get a local copy of Orpheus up and running:
+Follow these steps to get a local copy of OrpheusDL_Modded4 up and running:
 
 ### Prerequisites
 
@@ -109,12 +146,12 @@ loaded module. You'll find the configuration file here: `config/settings.json`
 | `search_limit` | integer | `10` | How many search results are shown when searching |
 | `strict_quality_download` | boolean | `false` | If enabled, tracks will only be downloaded if the requested quality is available |
 
-**Quality Options:**
-- **"hifi"**: FLAC higher than 44.1/16 if available
-- **"lossless"**: FLAC with 44.1/16 if available  
-- **"high"**: lossy codecs such as MP3, AAC, ... in a higher bitrate
-- **"medium"**: lossy codecs such as MP3, AAC, ... in a medium bitrate
-- **"low"**: lossy codecs such as MP3, AAC, ... in a lower bitrate
+**Quality Options (Updated Order):**
+- **"hifi"**: FLAC higher than 44.1/16 if available (highest quality)
+- **"lossless"**: FLAC with 44.1/16 if available (any lossless format)
+- **"high"**: lossy codecs such as MP3, AAC, ... in a higher bitrate (≥256kbps)
+- **"medium"**: lossy codecs such as MP3, AAC, ... in a medium bitrate (128-255kbps)
+- **"low"**: lossy codecs such as MP3, AAC, ... in a lower bitrate (<128kbps)
 
 **NOTE: The `download_quality` really depends on the used modules, so check out the modules README.md**
 
@@ -303,7 +340,79 @@ loaded module. You'll find the configuration file here: `config/settings.json`
 | `remove_collectors_editions` | boolean | `true` | Filters out collector's editions during artist downloads |
 | `remove_live_recordings` | boolean | `true` | Filters out live recordings during artist downloads |
 | `strict_artist_match` | boolean | `true` | Only downloads albums where album artist matches requested artist |
-| `log_unavailable_tracks` | boolean | `true` | Logs failed track downloads to `unavailable_tracks.log` |
+| `log_unavailable_tracks` | boolean | `true` | Logs failed track downloads to separate log files in album folders |
+
+#### Enhanced Logging System
+
+OrpheusDL_Modded4 includes an enhanced logging system that creates separate log files within each album folder to help you track and troubleshoot download issues:
+
+**Log Files Created:**
+
+1. **`error.txt`** - Logs tracks that are unavailable (region-locked, removed, or otherwise not accessible)
+   ```
+   Unavailable: The Rolling Stones [11]/Honk (Deluxe) [144013822]/Beast Of Burden (Live At Arrowhead Stadium, Kansas) [939813142]
+   ```
+
+2. **`strict_quality_error.txt`** - Logs tracks that don't meet quality requirements
+   ```
+   Not meet quality requirements: The Rolling Stones [11]/Flashpoint (2009 Remaster) [212919]/Continental Drift (Live / 2009 Remaster) [2120676]
+   ```
+
+**Features:**
+- **Separate categorization**: Unavailable tracks and quality issues are logged to different files for easier troubleshooting
+- **Album-specific logging**: Log files are created in each album's download folder, not in the project root
+- **Clear error messages**: Each log entry clearly indicates the reason for the failure
+- **Consistent format**: All entries follow the same format: `Error Type: Artist [ID]/Album [ID]/Track [ID]`
+
+**Location:**
+Log files are created in the album folder structure:
+```
+downloads/
+└── Deezer/
+    └── The Rolling Stones [11]/
+        └── Honk (Deluxe) [144013822] [E]/
+            ├── error.txt
+            ├── strict_quality_error.txt
+            └── [music files...]
+```
+
+**Settings Required:**
+- `log_unavailable_tracks: true` (in advanced settings) - enables logging of unavailable tracks
+- `strict_quality_download: true` (in general settings) - enables logging of quality issues
+
+#### Directory Organization
+
+OrpheusDL_Modded4 provides enhanced directory organization features:
+
+**Source Subdirectories:**
+When `source_subdirectories: true` is enabled, downloads are organized by service:
+```
+downloads/
+├── Qobuz/
+│   └── [Qobuz albums...]
+├── Tidal/
+│   └── [Tidal albums...]
+├── Deezer/
+│   └── [Deezer albums...]
+└── Spotify/
+    └── [Spotify albums...]
+```
+
+**Disc Subdirectories:**
+When `disc_subdirectories: true` is enabled, multi-disc albums are organized:
+```
+downloads/
+└── Qobuz/
+    └── Artist Name [123]/
+        └── Album Name [456]/
+            ├── Disc 1/
+            │   ├── 01. Track 1.flac
+            │   └── 02. Track 2.flac
+            ├── Disc 2/
+            │   ├── 01. Track 1.flac
+            │   └── 02. Track 2.flac
+            └── cover.jpg
+```
 
 #### Artist Downloading Behavior
 
@@ -365,8 +474,8 @@ When `strict_quality_download` is enabled, the following quality requirements ar
 
 | Quality Setting | Allowed Codecs | Additional Requirements |
 |----------------|----------------|------------------------|
-| **lossless** | FLAC, ALAC, WAV | Any bit depth/sample rate |
 | **hifi** | FLAC | >16bit OR >44.1kHz sample rate |
+| **lossless** | FLAC, ALAC, WAV | Any bit depth/sample rate |
 | **high** | MP3, AAC, HE-AAC, Vorbis, Opus | ≥256kbps bitrate |
 | **medium** | MP3, AAC, HE-AAC, Vorbis, Opus | 128-255kbps bitrate |
 | **low** | MP3, AAC, HE-AAC, Vorbis, Opus | <128kbps bitrate |
@@ -382,9 +491,9 @@ Strict quality download failed: Requested quality "lossless" unavailable for: Ar
 - Provides detailed logging of failed downloads for review
 - Works with all download types: albums, artists, playlists, and individual tracks
 
-### Usage Examples
+## Usage Examples
 
-#### Strict Quality Download Examples
+### Strict Quality Download Examples
 
 **Example 1: Download only lossless tracks**
 ```json5
@@ -413,7 +522,7 @@ This will only download lossy formats (MP3, AAC, etc.) with bitrates of 256kbps 
 ```
 This will attempt to download lossless quality but fall back to the best available quality if lossless is not available.
 
-#### Artist Download Examples
+### Artist Download Examples
 
 **Example 1: Download only studio albums by exact artist**
 ```json5
@@ -445,7 +554,25 @@ This will attempt to download lossless quality but fall back to the best availab
 }
 ```
 
-#### Console Output Examples
+### Directory Organization Examples
+
+**Example 1: Enable source subdirectories**
+```json5
+{
+    "source_subdirectories": true
+}
+```
+This will create service-specific folders like "Qobuz", "Tidal", "Deezer" in your downloads directory.
+
+**Example 2: Enable disc subdirectories**
+```json5
+{
+    "disc_subdirectories": true
+}
+```
+This will create "Disc 1", "Disc 2", etc. folders for multi-disc albums.
+
+### Console Output Examples
 
 **When tracks meet quality requirements:**
 ```
@@ -478,13 +605,15 @@ Skipping live recording: Album Name (Live)
 Skipping different artist: Album Name (by Different Artist)
 ```
 
-#### Troubleshooting
+## Troubleshooting
 
 **Q: Why are all my tracks being skipped?**
 A: Check your `download_quality` setting and ensure the tracks are actually available in that quality. Some older releases may only be available in lossy formats.
 
 **Q: Where can I find details about failed downloads?**
-A: Failed downloads are logged to `strict_quality_errors.log` in the same directory where you run OrpheusDL.
+A: Failed downloads are logged to separate files in each album folder:
+- `error.txt` - for unavailable tracks (region-locked, removed, etc.)
+- `strict_quality_error.txt` - for tracks that don't meet quality requirements
 
 **Q: Can I use strict quality with any download type?**
 A: Yes, strict quality download works with albums, artists, playlists, and individual tracks.
@@ -498,6 +627,20 @@ A: Check your `ignore_different_artists` setting. If enabled, tracks by other ar
 **Q: How do I download complete albums with guest features?**
 A: Set `ignore_different_artists` to `false` to download all tracks within albums, including guest appearances.
 
+**Q: How do I enable logging of failed downloads?**
+A: Set `log_unavailable_tracks: true` in the advanced settings to log unavailable tracks, and `strict_quality_download: true` in general settings to log quality issues.
+
+**Q: What's the difference between unavailable tracks and quality issues?**
+A: 
+- **Unavailable tracks**: Cannot be downloaded due to service restrictions (region-locked, removed from service, etc.)
+- **Quality issues**: Available but don't meet your specified quality requirements (e.g., only MP3 available when you requested FLAC)
+
+**Q: How do I organize downloads by service?**
+A: Enable `source_subdirectories: true` in the formatting settings to create service-specific folders.
+
+**Q: How do I organize multi-disc albums?**
+A: Enable `disc_subdirectories: true` in the formatting settings to create "Disc N" folders for multi-disc albums.
+
 <!-- Contact -->
 ## Contact
 
@@ -507,9 +650,36 @@ Dniel97 (Current Lead Developer) - [@Dniel97](https://github.com/Dniel97)
 
 Project Link: [Orpheus Public GitHub Repository](https://github.com/OrfiTeam/OrpheusDL)
 
+## Changelog
 
+### Version 4.0 (OrpheusDL_Modded4)
+
+#### 🆕 New Features
+- **Enhanced Logging System**: Separate log files for unavailable tracks and quality issues
+- **Strict Quality Download**: Enforce quality requirements and skip tracks that don't meet standards
+- **Source Subdirectories**: Organize downloads by service (Qobuz, Tidal, Deezer, etc.)
+- **Disc Subdirectories**: Automatic "Disc N" folders for multi-disc albums
+- **Advanced Filtering**: Filter collector editions, live recordings, and strict artist matching
+
+#### 🔧 Improvements
+- **Updated Quality Hierarchy**: Hifi → Highest, Lossless, high, medium, low
+- **Better Error Messages**: Clear categorization of download failures
+- **Improved Directory Structure**: More organized download folders
+- **Enhanced Artist Downloads**: More granular control over what gets downloaded
+
+#### 🐛 Bug Fixes
+- Fixed logging order to properly categorize unavailable vs quality issues
+- Improved error handling for strict quality downloads
+- Better handling of multi-disc album organization
+
+#### 📝 Documentation
+- Comprehensive README with all new features
+- Detailed configuration examples
+- Troubleshooting guide
+- Usage examples for all new features
 
 <!-- ACKNOWLEDGEMENTS -->
 ## Acknowledgements
 * Chimera by Aesir - the inspiration to the project
 * [Icon modified from a freepik image](https://www.freepik.com/)
+* Original OrpheusDL team for the excellent foundation
