@@ -29,7 +29,7 @@ def true_current_utc_timestamp():
 
 
 class Orpheus:
-    def __init__(self, private_mode=False):
+    def __init__(self, private_mode=False, extension_cli_args: dict | None = None):
         self.extensions, self.extension_list, self.module_list, self.module_settings, self.module_netloc_constants, self.loaded_modules = {}, set(), set(), {}, {}, {}
 
         self.default_global_settings = {
@@ -169,14 +169,26 @@ class Orpheus:
 
         self.update_module_storage()
 
+        if extension_cli_args:
+            for ext_type, exts in self.settings.get('extensions', {}).items():
+                for ext_name, ext_settings in exts.items():
+                    if ext_name in extension_cli_args:
+                        ext_settings.update(extension_cli_args[ext_name])
+
         for i in self.extension_list:
             extension_settings: ExtensionInformation = getattr(importlib.import_module(f'extensions.{i}.interface'), 'extension_settings', None)
-            settings = self.settings['extensions'][extension_settings.extension_type][extension] \
+            settings = self.settings['extensions'][extension_settings.extension_type][i] \
                 if extension_settings.extension_type in self.settings['extensions'] \
-                and extension in self.settings['extensions'][extension_settings.extension_type] else extension_settings.settings
+                and i in self.settings['extensions'][extension_settings.extension_type] else extension_settings.settings
             extension_type = extension_settings.extension_type
             self.extensions[extension_type] = self.extensions[extension_type] if extension_type in self.extensions else {}
-            self.extensions[extension_type][extension] = class_(settings)
+            self.extensions[extension_type][i] = class_(settings)
+
+        # Call on_startup on all extensions before any HTTP requests
+        for ext_type in self.extensions:
+            for ext_name, ext in self.extensions[ext_type].items():
+                if hasattr(ext, 'on_startup'):
+                    ext.on_startup(self)
 
         [self.load_module(module) for module in self.module_list if ModuleFlags.startup_load in self.module_settings[module].flags]
 
@@ -246,6 +258,12 @@ class Orpheus:
                 raise Exception(f'Error loading module: "{module}"') # TODO: replace with InvalidModuleError
         else:
             return self.loaded_modules[module]
+
+    def shutdown(self):
+        for ext_type in self.extensions:
+            for ext_name, ext in self.extensions[ext_type].items():
+                if hasattr(ext, 'on_shutdown'):
+                    ext.on_shutdown()
 
     def update_module_storage(self): # Should be refactored eventually
         ## Settings

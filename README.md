@@ -34,6 +34,7 @@ A modular music archival program with enhanced features
         - [Artist Downloading Behavior](#artist-downloading-behavior)
         - [Quality Enforcement Details](#quality-enforcement-details)
         - [Directory Organization](#directory-organization)
+        - [Proxy Extension](#proxy-extension)
 - [Usage Examples](#usage-examples)
 - [Troubleshooting](#troubleshooting)
 - [Contact](#contact)
@@ -490,6 +491,59 @@ Strict quality download failed: Requested quality "lossless" unavailable for: Ar
 - Avoids creating empty folders when no tracks meet quality requirements
 - Provides detailed logging of failed downloads for review
 - Works with all download types: albums, artists, playlists, and individual tracks
+
+### Proxy Extension
+
+The `proxy_rotator` extension routes requests through a rotating proxy list to avoid rate limiting and IP blocks.
+
+#### Installation
+
+Create `extensions/proxy_rotator/interface.py` with the extension implementation (see [docs/EXTENSIONS.md](docs/EXTENSIONS.md) for the full code).
+
+#### Settings
+
+```json5
+{
+    "extensions": {
+        "proxy": {
+            "proxy_rotator": {
+                "enabled": true,
+                "proxy_list_file": "proxy-list.txt",
+                "rotation_strategy": "request"
+            }
+        }
+    }
+}
+```
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `enabled` | `true` | Enable or disable the extension |
+| `proxy_list_file` | `"proxy-list.txt"` | Path to proxy list file |
+| `rotation_strategy` | `"session"` | `"session"` (proxy at startup) or `"request"` (rotate each request) |
+
+#### Proxy List Format
+
+Create a text file with one proxy per line. Lines starting with `#` are comments.
+
+```
+# My proxy list
+user:pass@proxy1.example.com:8080
+user:pass@proxy2.example.com:3128
+192.168.1.1:1080
+```
+
+Format: `user:pass@host:port` (auth optional). Auto-detects SOCKS5 (1080, 10800) and HTTP (3128, 8000, 8080, 8443, 8888) ports.
+
+#### CLI Usage
+
+```shell
+python3 orpheus.py -px /path/to/proxy-list.txt https://open.qobuz.com/album/abc123
+```
+
+The `-px` / `--proxy-list` flag is only available when the extension is installed.
+
+For full extension development details, see [docs/EXTENSIONS.md](docs/EXTENSIONS.md).
 
 ## Usage Examples
 

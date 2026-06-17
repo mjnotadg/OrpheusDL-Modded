@@ -38,6 +38,8 @@ class Downloader:
         self.load_module = module_controls['module_loader']
         self.global_settings = settings
 
+        self.extensions = module_controls.get('extensions', {})
+
         self.oprinter = oprinter
         self.print = self.oprinter.oprint
         self.set_indent_number = self.oprinter.set_indent_number
@@ -87,6 +89,12 @@ class Downloader:
         error_file = os.path.join(album_path, 'strict_quality_error.txt') if album_path else 'strict_quality_errors.log'
         with open(error_file, 'a', encoding='utf-8') as logf:
             logf.write(f'{error_msg}\n')
+
+    def _call_hooks(self, method_name, *args, **kwargs):
+        for ext_type in self.extensions:
+            for ext_name, ext in self.extensions[ext_type].items():
+                if hasattr(ext, method_name):
+                    getattr(ext, method_name)(*args, **kwargs)
 
     def _check_strict_quality_requirement(self, track_id, track_info, album_path=None, extra_kwargs={}):
         """Check if strict quality download is enabled and if the requested quality is available"""
@@ -632,7 +640,9 @@ class Downloader:
             proprietary_codecs = self.global_settings['codecs']['proprietary_codecs'],
         )
         track_info: TrackInfo = self.service.get_track_info(track_id, quality_tier, codec_options, **extra_kwargs)
-        
+
+        self._call_hooks('before_download', track_info, self.service_name)
+
         if track_info.error:
             self._log_unavailable_track(track_id, track_info, album_location)
             self.print(track_info.error)
@@ -757,10 +767,11 @@ class Downloader:
         except KeyboardInterrupt:
             self.print('^C pressed, exiting')
             sys.exit(0)
-        except Exception:
+        except Exception as e:
             if self.global_settings['advanced']['debug_mode']: raise
             self.print('Warning: Track download failed: ' + str(sys.exc_info()[1]))
             self.print(f'=== Track {track_id} failed ===', drop_level=1)
+            self._call_hooks('on_download_error', track_info, str(e))
             return False
 
         delete_cover = False
@@ -946,7 +957,9 @@ class Downloader:
             self.print('Tagging failed, tags saved to text file')
         if delete_cover:
             silentremove(cover_temp_location)
-        
+
+        self._call_hooks('after_download', track_info, track_location)
+
         self.print(f'=== Track {track_id} downloaded ===', drop_level=1)
         return True
 

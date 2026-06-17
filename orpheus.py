@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 
 import argparse
+import importlib
+import os
 import re
 from urllib.parse import urlparse
 
@@ -25,6 +27,20 @@ def main():
            '[option]" for module specific options (update, test, setup), searching by "[search/luckysearch] [module]' \
            '[track/artist/playlist/album] [query]", or just putting in urls. (you may need to wrap the URLs in double' \
            'quotes if you have issues downloading)'
+
+    extension_cli_info = {}
+    if os.path.exists('extensions'):
+        for ext_name in os.listdir('extensions'):
+            ext_path = f'extensions/{ext_name}'
+            if os.path.isdir(ext_path) and os.path.exists(f'{ext_path}/interface.py'):
+                try:
+                    mod = importlib.import_module(f'extensions.{ext_name}.interface')
+                    es = getattr(mod, 'extension_settings', None)
+                    if es and hasattr(es, 'cli_args') and es.cli_args:
+                        extension_cli_info[ext_name] = es.cli_args
+                except Exception:
+                    pass
+
     parser = argparse.ArgumentParser(description='Orpheus: modular music archival')
     parser.add_argument('-p', '--private', action='store_true', help=argparse.SUPPRESS)
     parser.add_argument('-o', '--output', help='Select a download output path. Default is the provided download path in config/settings.py')
@@ -35,7 +51,26 @@ def main():
     parser.add_argument('arguments', nargs='*', help=help_)
     args = parser.parse_args()
 
-    orpheus = Orpheus(args.private)
+    for ext_name, cli_args_list in extension_cli_info.items():
+        for arg_def in cli_args_list:
+            flags = arg_def.get("flags", [])
+            kwargs = arg_def.get("kwargs", {})
+            parser.add_argument(*flags, **kwargs)
+
+    args = parser.parse_args()
+
+    extension_cli_args = {}
+    for ext_name, cli_args_list in extension_cli_info.items():
+        for arg_def in cli_args_list:
+            for flag in arg_def.get("flags", []):
+                if flag.startswith("--"):
+                    dest = flag[2:].replace("-", "_")
+                else:
+                    dest = flag[1:].replace("-", "_")
+                if hasattr(args, dest):
+                    extension_cli_args.setdefault(ext_name, {})[dest] = getattr(args, dest)
+
+    orpheus = Orpheus(args.private, extension_cli_args)
     if not args.arguments:
         parser.print_help()
         exit()
@@ -219,10 +254,15 @@ def main():
 
         orpheus_core_download(orpheus, media_to_download, tpm, sdm, path)
 
+    return orpheus
+
 
 if __name__ == "__main__":
+    orpheus = None
     try:
-        main()
+        orpheus = main()
     except KeyboardInterrupt:
         print('\n\t^C pressed - abort')
-        exit()
+    finally:
+        if orpheus and hasattr(orpheus, 'shutdown'):
+            orpheus.shutdown()

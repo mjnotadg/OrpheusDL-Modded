@@ -174,6 +174,7 @@ class ModuleInformation:
 class ExtensionInformation:
     extension_type: str
     settings: dict
+    cli_args: list[dict] = field(default_factory=list)
 
 
 class DownloadTypeEnum(Flag):
